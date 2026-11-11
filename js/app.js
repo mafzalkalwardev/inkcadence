@@ -614,20 +614,20 @@
     if (pack.penColours && pack.penColours.length) {
       html += '<div class="field"><label class="small muted">Detected inks</label><div class="swatch" style="margin-top:4px">';
       pack.penColours.forEach(function (h) {
-        html += '<button style="background:' + h + '" title="' + h + '"></button>';
+        html += '<button style="background:' + esc(h) + '" title="' + esc(h) + '"></button>';
       });
       html += '</div></div>';
     }
 
     if (pack.missing && pack.missing.length) {
       html += '<p class="small muted"><b>' + pack.missing.length + '</b> alphabet cell(s) were empty: ' +
-        pack.missing.join(' ') + '</p>';
+        esc(pack.missing.join(' ')) + '</p>';
     }
 
     if ((pack.glyphs || []).length) {
       html += '<div class="field"><label class="small muted">Letterforms / harvested crops</label><div class="glyphgrid">';
       pack.glyphs.slice(0, 90).forEach(function (g) {
-        html += '<figure><img src="' + g.url + '" alt="' + esc(g.ch) + '"><figcaption>' + esc(g.ch) + '</figcaption></figure>';
+        html += '<figure><img src="' + esc(g.url) + '" alt="' + esc(g.ch) + '"><figcaption>' + esc(g.ch) + '</figcaption></figure>';
       });
       html += '</div></div>';
     }
@@ -661,7 +661,7 @@
   }
 
   function stat(v, label) {
-    return '<div class="stat"><b>' + v + '</b><span>' + label + '</span></div>';
+    return '<div class="stat"><b>' + esc(v) + '</b><span>' + esc(label) + '</span></div>';
   }
   function esc(s) {
     return String(s).replace(/[&<>"]/g, function (c) {

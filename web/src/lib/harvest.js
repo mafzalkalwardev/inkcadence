@@ -2,6 +2,7 @@
    Used when no alphabet sheet is provided (or to enrich sheet glyphs with variants).
    Hardened against ruled/grid lines, highlighter, blue/green ink, and phone skew. */
 'use strict';
+import { CharCNN } from './charcnn.js';
 var FREQ = 'etaoinshrdlcumwfgypbvkjxqzETAOINSHRDLCUMWFGYPBVKJXQZ0123456789';
 
   function canvas(w, h) {
@@ -210,7 +211,7 @@ var FREQ = 'etaoinshrdlcumwfgypbvkjxqzETAOINSHRDLCUMWFGYPBVKJXQZ0123456789';
 
   function assignLabelsAsync(crops, maxPerChar) {
     maxPerChar = maxPerChar || 4;
-    var cnn = global.CharCNN;
+    var cnn = CharCNN;
     if (!cnn) return Promise.resolve([]);
     var ensure = cnn.isReady() ? Promise.resolve() : cnn.load();
     return ensure.then(function () {

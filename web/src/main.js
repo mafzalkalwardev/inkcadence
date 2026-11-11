@@ -498,7 +498,7 @@ function renderPackList() {
     const glyphs = (p.glyphs && p.glyphs.length) || 0;
     const pens = (p.penColours && p.penColours.length) || 0;
     const meta = glyphs ? `${glyphs} glyphs${pens ? ' · ' + pens + ' ink' : ''}` : 'Style pack';
-    li.innerHTML = `<span class="dot" style="background:${(p.penColours && p.penColours[0]) || '#2f6fed'}"></span>
+    li.innerHTML = `<span class="dot" style="background:${esc((p.penColours && p.penColours[0]) || '#2f6fed')}"></span>
       <div style="flex:1;min-width:0"><span class="pname">${esc(p.name)}</span><span class="pmeta">${esc(meta)}</span></div>`;
     const del = document.createElement('button');
     del.className = 'pack-del';
@@ -714,7 +714,7 @@ function showResult(pack) {
   </div>`;
   if ((pack.glyphs || []).length) {
     html += '<div class="glyphgrid">' + pack.glyphs.slice(0, 90).map((g) =>
-      `<figure><img src="${g.url}" alt="${esc(g.ch)}"><figcaption>${esc(g.ch)}</figcaption></figure>`
+      `<figure><img src="${esc(g.url)}" alt="${esc(g.ch)}"><figcaption>${esc(g.ch)}</figcaption></figure>`
     ).join('') + '</div>';
   }
   $('#resultBody').innerHTML = html;
