@@ -123,19 +123,19 @@ function renderMarketing() {
         <p>Your hand, on every page — learn from your own assignments, then write new ones with the same ink, slant, and letterforms.</p>
         <div class="row hero-cta">
           <button id="ctaStart">Start writing</button>
-          <button class="ghost" id="ctaSelfhost">Self-host docs</button>
+          <button class="ghost" id="ctaSelfhost">Archived API</button>
         </div>
       </div>
     </section>
     <footer class="marketing-nav muted small">
-      <span>Classical always works · Neural when you want it</span>
+      <span>Runs in the browser, on your device</span>
       <a href="#/legal">Privacy &amp; terms</a>
     </footer>
   </div>`;
   $('#navLogin').onclick = () => navigate('/login');
   $('#navStart').onclick = () => goAppOrAuth();
   $('#ctaStart').onclick = () => goAppOrAuth();
-  $('#ctaSelfhost').onclick = () => { window.open('/SELFHOST.md', '_blank'); };
+  $('#ctaSelfhost').onclick = () => { window.open('https://github.com/mafzalkalwardev/inkcadence/blob/experimental/backend/SELFHOST.md', '_blank'); };
   wireThemeToggle();
 }
 
@@ -148,18 +148,17 @@ function renderPricing() {
     </nav>
     <section class="hero">
       <div class="hero-inner rise">
-        <h1 class="hero-brand" style="font-size:clamp(2.2rem,5vw,3.4rem)">Write freely.<br><span>Upgrade when ready.</span></h1>
-        <p>Self-host is free forever. Hosted plans unlock sync, neural training minutes, and higher pack limits.</p>
+        <h1 class="hero-brand" style="font-size:clamp(2.2rem,5vw,3.4rem)">Free in the browser.</h1>
+        <p>This app runs on your device. The old API, database, and payments code are archived.</p>
         <div class="grid2" style="text-align:left;margin-top:24px">
-          <div class="panel"><h3>Self-host</h3><p class="muted small">Unlimited classical writing on your machine. Docker Compose in one command.</p><button class="ghost" id="toDocs">Read SELFHOST.md</button></div>
-          <div class="panel"><h3>Pro / Team</h3><p class="muted small">Hosted accounts, Stripe billing, neural fine-tunes, email recovery.</p><button id="toApp">Open app</button></div>
+          <div class="panel"><h3>On this device</h3><p class="muted small">Writing stays in the browser. There is no account server in this tree.</p></div>
+          <div class="panel"><h3>Archived API</h3><p class="muted small">The old API and neural service are kept on a branch, not in this build.</p><button class="ghost" id="toDocs">Read the archive notes</button></div>
         </div>
       </div>
     </section>
   </div>`;
   $('#back').onclick = () => navigate('/');
-  $('#toDocs').onclick = () => window.open('/SELFHOST.md', '_blank');
-  $('#toApp').onclick = () => goAppOrAuth();
+  $('#toDocs').onclick = () => window.open('https://github.com/mafzalkalwardev/inkcadence/blob/experimental/backend/SELFHOST.md', '_blank');
   wireThemeToggle();
 }
 
@@ -172,9 +171,9 @@ function renderLegal() {
     </nav>
     <article class="legal panel rise">
       <h1>Privacy &amp; terms</h1>
-      <p>Inkcadence processes handwriting samples in the browser for classical style extraction. Source photos are not uploaded in the default self-host path — only extracted style pack JSON may sync to your server.</p>
-      <p><b>AI-assisted handwriting disclosure:</b> generated pages may include an optional watermark. Do not use outputs to forge signatures, certificates, or official documents.</p>
-      <p class="muted small">MIT licensed. SaaS deployments may process account email for verification, billing, and support.</p>
+      <p>Inkcadence processes handwriting samples in the browser. Photos stay on the device.</p>
+      <p><b>AI-assisted handwriting disclosure:</b> generated pages may include an optional note. Do not use outputs to forge signatures, certificates, or official documents.</p>
+      <p class="muted small">MIT licensed.</p>
     </article>
   </div>`;
   wireThemeToggle();

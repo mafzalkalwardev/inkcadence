@@ -1,7 +1,8 @@
 """Train CharCNN on real human handwriting (neat + messy + mixed).
 
 Primary: EMNIST ByClass (NIST writers).
-Optional: Kaggle A-Z CSV at ml/data/A_Z_Handwritten_Data.csv or via kagglehub.
+Optional: Kaggle A-Z CSV at tools/charcnn/data/A_Z_Handwritten_Data.csv or via kagglehub.
+Weights are written to tools/charcnn/artifacts/ and copied to assets/charcnn.json and web/public/charcnn.json.
 """
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ from torchvision import datasets, transforms
 from PIL import Image, ImageFilter, ImageOps
 
 ROOT = Path(__file__).resolve().parent
-REPO = ROOT.parent
+REPO = ROOT.parent.parent
 DATA = ROOT / "data"
 ART = ROOT / "artifacts"
 

@@ -1,22 +1,16 @@
 {
   "name": "inkcadence",
   "version": "2.0.0",
-  "description": "Learn your handwriting from your own old assignments, then generate new pages in your own hand — classical glyph synthesis with optional neural personalization. Self-host or SaaS.",
+  "description": "Write the words you supply in your own handwriting. Static site: the landing page and the app run in the browser, on the device.",
   "keywords": [
     "handwriting",
-    "handwriting-generator",
     "handwriting-synthesis",
-    "handwriting-style-transfer",
-    "ai-handwriting",
     "handwritten-text",
-    "assignment-generator",
-    "handwriting-font",
-    "ink-detection",
-    "canvas",
-    "vite",
     "offline-first",
     "privacy-first",
-    "self-hosted"
+    "static-site",
+    "browser",
+    "vite"
   ],
   "license": "MIT",
   "private": false,
@@ -35,43 +29,25 @@
     "js/",
     "assets/",
     "web/",
-    "server/",
-    "ml/"
+    "docs/"
   ],
   "scripts": {
-    "start": "node server/index.js",
-    "dev": "node server/dev.js",
-    "dev:watch": "node --watch server/dev.js",
     "dev:web": "npm run dev --prefix web",
     "build": "npm run build --prefix web",
     "build:web": "npm run build --prefix web",
-    "migrate": "node server/migrate.js",
-    "test": "node test/api.test.js && node test/frontend.test.js && node test/engine.test.js && node test/pipeline.test.js && node test/realism.test.js && node test/assignments.test.js",
-    "test:api": "node test/api.test.js",
+    "test": "node test/frontend.test.js && node test/engine.test.js && node test/pipeline.test.js && node test/realism.test.js && node test/assignments.test.js",
     "test:pipeline": "node test/pipeline.test.js",
     "test:assignments": "node test/assignments.test.js",
     "fixtures:samples": "python scripts/make_sample_handwriting.py",
     "fixtures:assignments": "python scripts/make_assignment_fixtures.py",
-    "lint": "node --check server/app.js && node --check server/auth.js && node --check server/packs.js && node --check web/src/main.js",
+    "lint": "node --check web/src/main.js && node --check js/app.js && node --check js/store.js && node --check js/config.js",
     "serve:static": "npx --yes serve . -l 4173",
     "sync:engines": "node scripts/sync_engines_to_web.js",
     "check:engines": "node scripts/sync_engines_to_web.js --check",
-    "train:charcnn": "python3 ml/train_char_cnn.py",
-    "train:charcnn:quick": "python3 ml/train_char_cnn.py --quick"
+    "train:charcnn": "python3 tools/charcnn/train_char_cnn.py",
+    "train:charcnn:quick": "python3 tools/charcnn/train_char_cnn.py --quick"
   },
   "engines": {
     "node": ">=18"
-  },
-  "dependencies": {
-    "express": "^4.19.2",
-    "ioredis": "^5.4.1",
-    "pg": "^8.12.0"
-  },
-  "optionalDependencies": {
-    "nodemailer": "^6.9.14",
-    "stripe": "^16.2.0"
-  },
-  "devDependencies": {
-    "pg-mem": "^3.0.14"
   }
 }
