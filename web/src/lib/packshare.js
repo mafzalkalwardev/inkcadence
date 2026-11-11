@@ -41,6 +41,39 @@ function stripPhotos(pack) {
     data.penColours = Array.isArray(data.penColours)
       ? data.penColours.filter(function (c) { return typeof c === 'string' && HEX_COLOUR.test(c); })
       : [];
+    var penKind = { pen: 1, marker: 1, pencil: 1 };
+    var penRole = { body: 1, heading: 1 };
+    data.pens = Array.isArray(data.pens) ? data.pens.filter(function (p) {
+      return p && typeof p === 'object' && typeof p.hex === 'string' && HEX_COLOUR.test(p.hex) && penKind[p.kind] && penRole[p.role];
+    }).map(function (p) {
+      return {
+        hex: p.hex,
+        kind: p.kind,
+        role: p.role,
+        width: finiteOrUndef(p.width),
+        share: finiteOrUndef(p.share)
+      };
+    }) : [];
+    if (data.heading && typeof data.heading === 'object' && typeof data.heading.pen === 'string' && HEX_COLOUR.test(data.heading.pen)) {
+      data.heading = {
+        pen: data.heading.pen,
+        scale: finiteOrUndef(data.heading.scale),
+        underline: !!data.heading.underline,
+        case: shortText(data.heading.case, 16)
+      };
+    } else {
+      data.heading = null;
+    }
+    if (data.style && typeof data.style === 'object') {
+      var style = {};
+      ['slant', 'xHeight', 'letterGap', 'wordGap', 'lineSpacing', 'baselineWobble',
+        'letterGapEm', 'wordGapEm', 'lineSpacingEm', 'baselineWobbleEm'].forEach(function (k) {
+        style[k] = finiteOrUndef(data.style[k]);
+      });
+      data.style = style;
+    } else {
+      data.style = null;
+    }
     data.missing = Array.isArray(data.missing) ? data.missing.filter(isChar) : [];
     data.glyphs = Array.isArray(data.glyphs)
       ? data.glyphs.filter(function (g) {

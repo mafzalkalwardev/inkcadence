@@ -353,11 +353,75 @@ function showSheetThumbs() {
   $('#sheetWrap').hidden = false;
 }
 
+let analyzeWorker;
+let analyzeSeq = 0;
+const analyzePending = new Map();
+
+function getAnalyzeWorker() {
+  if (analyzeWorker) return analyzeWorker;
+  analyzeWorker = new Worker(new URL('./lib/imaging.worker.js', import.meta.url), { type: 'module' });
+  analyzeWorker.onmessage = (ev) => {
+    const msg = ev.data || {};
+    const pending = analyzePending.get(msg.id);
+    if (!pending) return;
+    analyzePending.delete(msg.id);
+    if (msg.ok) pending.resolve(msg.result);
+    else pending.reject(new Error(msg.error || 'Page analysis failed'));
+  };
+  analyzeWorker.onerror = (err) => {
+    analyzePending.forEach((pending) => pending.reject(err.error || err));
+    analyzePending.clear();
+    analyzeWorker = null;
+  };
+  return analyzeWorker;
+}
+
+function analyzeCanvas(canvas) {
+  const ctx = canvas.getContext('2d');
+  const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const id = ++analyzeSeq;
+  return new Promise((resolve, reject) => {
+    analyzePending.set(id, { resolve, reject });
+    getAnalyzeWorker().postMessage({
+      type: 'analyzeImageData',
+      id,
+      width: canvas.width,
+      height: canvas.height,
+      buffer: image.data.buffer,
+    }, [image.data.buffer]);
+  });
+}
+
+async function analyzeCanvases(canvases) {
+  if (typeof Worker !== 'undefined') {
+    try {
+      return await Promise.all(canvases.map((c) => analyzeCanvas(c)));
+    } catch (_) { /* fall back to this thread */ }
+  }
+  return canvases.map((c) => {
+    const result = Imaging.analyze(c);
+    delete result.thumb;
+    return result;
+  });
+}
+
+function handPens(stats) {
+  const rich = stats.pens || [];
+  if (!rich.length) {
+    return (stats.palette || []).filter((c) => c.kind !== 'faint').map((c) => c.hex);
+  }
+  const ordered = rich.filter((p) => p.role === 'body').map((p) => p.hex)
+    .concat(rich.filter((p) => p.role === 'heading').map((p) => p.hex));
+  return [...new Set(ordered)].slice(0, 4);
+}
+
 async function buildDraftPack() {
   const name = $('#packName').value.trim() || 'Untitled pack';
   let stats = null;
   if (S.refImages.length) {
-    stats = Imaging.mergeAnalyses(S.refImages.map((c) => Imaging.analyze(c)));
+    const analyses = await analyzeCanvases(S.refImages);
+    stats = Imaging.mergeAnalyses(analyses);
+    delete stats.thumbs;
   }
   let glyphs = [], missing = [], cellH = 92, cellW = 70;
   if (S.sheetReads.length) {
@@ -396,7 +460,7 @@ async function buildDraftPack() {
     };
   }
   const base = Presets.matchFromStats(stats);
-  let pens = stats.palette.filter((c) => c.kind !== 'faint').map((c) => c.hex);
+  let pens = handPens(stats);
   if (!pens.length) pens = (base.penColours || ['#1b2a4a']).slice();
   const scored = Assignment.styleScore(stats);
   const pats = stats.patterns || {};
@@ -421,7 +485,10 @@ async function buildDraftPack() {
     strokeWidth: stats.strokeWidth,
     lineGap: stats.lineGap || base.lineGap,
     fontFamily: glyphs.length ? null : base.fontFamily,
-    headingStyle: base.headingStyle,
+    pens: stats.pens || [],
+    heading: stats.heading || null,
+    style: stats.style || null,
+    headingStyle: (stats.heading && stats.heading.underline) ? 'underline' : base.headingStyle,
     defaultJitter: jitter,
     tracking: base.tracking,
     baseStyleId: base.id,
@@ -445,6 +512,8 @@ function showQa(pack) {
       <div class="stat"><b>${(pack.stats && pack.stats.pages) || 0}</b><span>sample pages</span></div>
     </div>
     ${qa.missing.length ? `<p class="small muted"><b>${qa.missing.length}</b> empty: ${esc(qa.missing.join(' '))}</p>` : ''}
+    ${(pack.pens || []).length ? `<p class="small muted">Pens: ${pack.pens.map((p) => esc(p.role) + ' ' + esc(p.kind)).join(', ')}</p>` : ''}
+    ${pack.heading ? `<p class="small muted">Heading is ${esc(pack.heading.scale)}× the body text${pack.heading.underline ? ', underlined' : ''}.</p>` : ''}
     <p class="hint">${qa.ready ? 'Looks good to save.' : 'Coverage is low — fill more sheet cells for better classical output.'}</p>`;
 }
 
