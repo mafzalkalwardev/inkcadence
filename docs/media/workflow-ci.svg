@@ -8,7 +8,7 @@
     <text x="56" y="132" font-size="16" fill="#fff" font-weight="700">CI</text>
     <text x="56" y="160" font-size="13" fill="#c5d2e4">npm test and lint</text>
     <text x="56" y="182" font-size="13" fill="#c5d2e4">Vite production build</text>
-    <text x="56" y="204" font-size="13" fill="#c5d2e4">API image and ML image</text>
+    <text x="56" y="204" font-size="13" fill="#c5d2e4">Engine copies stay in sync</text>
 
     <rect x="330" y="68" width="280" height="168" rx="16" fill="#152232" stroke="#2c3e58"/>
     <text x="350" y="100" font-size="13" fill="#9ec0ff" font-weight="700">AFTER CI ON MAIN</text>
