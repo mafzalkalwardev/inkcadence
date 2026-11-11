@@ -1,10 +1,7 @@
 'use strict';
 /* Pure unit checks for classical engine helpers (no browser canvas required). */
 
-const path = require('path');
-const fs = require('fs');
-const vm = require('vm');
-const PROJECT = path.join(__dirname, '..');
+const { installDocument, loadLib } = require('./load-lib');
 
 let pass = 0;
 const failures = [];
@@ -13,100 +10,69 @@ function check(name, cond, extra) {
   else { failures.push(name + (extra ? ' — ' + extra : '')); console.log('  FAIL ' + name + (extra ? ' — ' + extra : '')); }
 }
 
-function loadIife(file, sandbox) {
-  vm.runInContext(fs.readFileSync(path.join(PROJECT, file), 'utf8'), sandbox);
-}
-
-function fakeDom() {
-  const sandbox = {
-    console,
-    Math,
-    JSON,
-    Array,
-    Object,
-    String,
-    Number,
-    Error,
-    Uint8Array,
-    Uint8ClampedArray,
-    Uint32Array,
-    Float32Array,
-    Float64Array,
-    Promise,
-    Date,
-    setTimeout,
-    clearTimeout,
-  };
-  sandbox.window = sandbox;
-  sandbox.document = {
-    createElement: function (tag) {
-      if (tag !== 'canvas') return {};
-      const c = {
-        width: 0,
-        height: 0,
-        getContext: function () {
-          return {
-            drawImage: function () {},
-            getImageData: function (x, y, w, h) {
-              const data = new Uint8ClampedArray(w * h * 4);
-              for (let i = 0; i < data.length; i += 4) {
-                data[i] = 240; data[i + 1] = 240; data[i + 2] = 235; data[i + 3] = 255;
-              }
-              for (let yy = 10; yy < 30; yy++) {
-                for (let xx = 10; xx < 40; xx++) {
-                  const p = (yy * w + xx) * 4;
-                  data[p] = 20; data[p + 1] = 30; data[p + 2] = 50;
-                }
-              }
-              return { data: data, width: w, height: h };
-            },
-            putImageData: function () {},
-            createImageData: function (w, h) {
-              return { data: new Uint8ClampedArray(w * h * 4), width: w, height: h };
-            },
-            fillRect: function () {},
-            fillStyle: '',
-            strokeStyle: '',
-            lineWidth: 1,
-            globalAlpha: 1,
-            font: '',
-            textAlign: 'left',
-            textBaseline: 'alphabetic',
-            globalCompositeOperation: '',
-            beginPath: function () {},
-            moveTo: function () {},
-            lineTo: function () {},
-            stroke: function () {},
-            fillText: function () {},
-            measureText: function (t) { return { width: String(t).length * 10 }; },
-            save: function () {},
-            restore: function () {},
-            translate: function () {},
-            rotate: function () {},
-            transform: function () {},
-          };
+function fakeCanvas() {
+  return {
+    width: 0,
+    height: 0,
+    getContext: function () {
+      return {
+        drawImage: function () {},
+        getImageData: function (x, y, w, h) {
+          const data = new Uint8ClampedArray(w * h * 4);
+          for (let i = 0; i < data.length; i += 4) {
+            data[i] = 240; data[i + 1] = 240; data[i + 2] = 235; data[i + 3] = 255;
+          }
+          for (let yy = 10; yy < 30; yy++) {
+            for (let xx = 10; xx < 40; xx++) {
+              const p = (yy * w + xx) * 4;
+              data[p] = 20; data[p + 1] = 30; data[p + 2] = 50;
+            }
+          }
+          return { data: data, width: w, height: h };
         },
-        toDataURL: function () { return 'data:image/png;base64,AAA'; },
+        putImageData: function () {},
+        createImageData: function (w, h) {
+          return { data: new Uint8ClampedArray(w * h * 4), width: w, height: h };
+        },
+        fillRect: function () {},
+        fillStyle: '',
+        strokeStyle: '',
+        lineWidth: 1,
+        globalAlpha: 1,
+        font: '',
+        textAlign: 'left',
+        textBaseline: 'alphabetic',
+        globalCompositeOperation: '',
+        beginPath: function () {},
+        moveTo: function () {},
+        lineTo: function () {},
+        stroke: function () {},
+        fillText: function () {},
+        measureText: function (t) { return { width: String(t).length * 10 }; },
+        save: function () {},
+        restore: function () {},
+        translate: function () {},
+        rotate: function () {},
+        transform: function () {},
       };
-      return c;
     },
+    toDataURL: function () { return 'data:image/png;base64,AAA'; },
   };
-  sandbox.Image = function () { this.onload = null; this.src = ''; };
-  sandbox.URL = { createObjectURL: function () { return 'blob:x'; }, revokeObjectURL: function () {} };
-  vm.createContext(sandbox);
-  return sandbox;
 }
 
-console.log('\n-- engine: imaging / glyphs / render helpers --');
-const sb = fakeDom();
-loadIife('js/imaging.js', sb);
-loadIife('js/glyphs.js', sb);
-loadIife('js/render.js', sb);
-loadIife('js/charcnn.js', sb);
-loadIife('js/harvest.js', sb);
-loadIife('js/assignment.js', sb);
+async function main() {
+  installDocument(fakeCanvas);
+  const sb = {
+    Imaging: await loadLib('imaging', 'Imaging'),
+    Glyphs: await loadLib('glyphs', 'Glyphs'),
+    Rendering: await loadLib('render', 'Rendering'),
+    CharCNN: await loadLib('charcnn', 'CharCNN'),
+    Harvest: await loadLib('harvest', 'Harvest'),
+    Assignment: await loadLib('assignment', 'Assignment'),
+  };
 
-check('Imaging exported', !!sb.Imaging && typeof sb.Imaging.otsu === 'function');
+  console.log('\n-- engine: imaging / glyphs / render helpers --');
+  check('Imaging exported', !!sb.Imaging && typeof sb.Imaging.otsu === 'function');
 check('Glyphs exported', !!sb.Glyphs && sb.Glyphs.CHARS.length > 50);
 check('Rendering exported', !!sb.Rendering && typeof sb.Rendering.renderPages === 'function');
 check('Harvest exported', !!sb.Harvest && typeof sb.Harvest.harvestFromPages === 'function');
@@ -182,7 +148,10 @@ check('mergeVariants adds new letters',
   mergedEmpty.length === 3,
   'len=' + mergedEmpty.length);
 
-console.log('\n' + '='.repeat(52));
-console.log('  passed: ' + pass + '   failed: ' + failures.length);
-if (failures.length) { failures.forEach((f) => console.log('   - ' + f)); process.exit(1); }
-console.log('  all green');
+  console.log('\n' + '='.repeat(52));
+  console.log('  passed: ' + pass + '   failed: ' + failures.length);
+  if (failures.length) { failures.forEach((f) => console.log('   - ' + f)); process.exit(1); }
+  console.log('  all green');
+}
+
+main().catch((err) => { console.error(err); process.exit(1); });

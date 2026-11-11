@@ -3,20 +3,21 @@
 
 const path = require('path');
 const fs = require('fs');
-const vm = require('vm');
+const { installDocument, loadLib } = require('./load-lib');
 
-let createCanvas, loadImage, Image;
+let createCanvas, loadImage;
 try {
-  ({ createCanvas, loadImage, Image } = require('canvas'));
+  ({ createCanvas, loadImage } = require('canvas'));
 } catch (e) {
-  console.log('-- assignments: skipped (canvas not installed) --');
-  process.exit(0);
+  console.error('-- assignments: canvas is required (devDependency) --');
+  console.error(e);
+  process.exit(1);
 }
 
 const FIX = path.join(__dirname, 'fixtures', 'samples', 'assignments');
 if (!fs.existsSync(FIX)) {
-  console.log('-- assignments: skipped (run python scripts/make_assignment_fixtures.py) --');
-  process.exit(0);
+  console.error('-- assignments: fixtures directory is missing --');
+  process.exit(1);
 }
 
 let pass = 0;
@@ -29,26 +30,13 @@ function check(name, cond, extra) {
   }
 }
 
-function loadEngines() {
-  const sandbox = {
-    console, Math, JSON, Array, Object, String, Number, Error,
-    Uint8Array, Uint8ClampedArray, Uint32Array, Float32Array, Float64Array,
-    Promise, Date, setTimeout, clearTimeout, Image,
+async function loadEngines() {
+  installDocument(() => createCanvas(1, 1));
+  return {
+    Imaging: await loadLib('imaging', 'Imaging'),
+    Harvest: await loadLib('harvest', 'Harvest'),
+    Presets: await loadLib('presets', 'Presets'),
   };
-  sandbox.window = sandbox;
-  sandbox.document = {
-    createElement(tag) {
-      if (tag === 'canvas') return createCanvas(1, 1);
-      return {};
-    },
-  };
-  sandbox.URL = { createObjectURL() { return 'blob:x'; }, revokeObjectURL() {} };
-  vm.createContext(sandbox);
-  for (const name of ['imaging', 'glyphs', 'harvest', 'render', 'presets', 'assignment']) {
-    const code = fs.readFileSync(path.join(__dirname, '..', 'js', name + '.js'), 'utf8');
-    vm.runInContext(code, sandbox, { filename: name + '.js' });
-  }
-  return sandbox;
 }
 
 async function toCanvas(p) {
@@ -63,7 +51,7 @@ async function main() {
   const files = fs.readdirSync(FIX).filter((f) => /\.jpe?g$/i.test(f)).sort();
   check('fixture set present', files.length >= 6, String(files.length));
 
-  const sb = loadEngines();
+  const sb = await loadEngines();
   const analyses = [];
   for (const f of files) {
     const c = await toCanvas(path.join(FIX, f));

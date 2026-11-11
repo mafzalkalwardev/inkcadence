@@ -4,22 +4,23 @@
 
 const path = require('path');
 const fs = require('fs');
-const vm = require('vm');
+const { installDocument, loadLib } = require('./load-lib');
 
 let createCanvas, loadImage, Image;
 try {
   ({ createCanvas, loadImage, Image } = require('canvas'));
 } catch (e) {
-  console.log('\n-- pipeline: skipped (npm i canvas required for image fixtures) --');
-  process.exit(0);
+  console.error('\n-- pipeline: canvas is required (devDependency) --');
+  console.error(e);
+  process.exit(1);
 }
 
 const PROJECT = path.join(__dirname, '..');
 const FIX = path.join(__dirname, 'fixtures', 'samples');
 const OUT = path.join(__dirname, 'fixtures', 'out');
 if (!fs.existsSync(path.join(FIX, 'glyph_sheet.jpg'))) {
-  console.log('\n-- pipeline: skipped (run npm run fixtures:samples first) --');
-  process.exit(0);
+  console.error('\n-- pipeline: glyph sheet fixture is missing --');
+  process.exit(1);
 }
 fs.mkdirSync(OUT, { recursive: true });
 
@@ -33,35 +34,33 @@ function check(name, cond, extra) {
   }
 }
 
-function loadEngines() {
-  const sandbox = {
-    console, Math, JSON, Array, Object, String, Number, Error,
-    Uint8Array, Uint8ClampedArray, Uint32Array, Float32Array, Float64Array,
-    Promise, Date, setTimeout, clearTimeout, Image,
-  };
-  sandbox.window = sandbox;
-  sandbox.document = {
-    createElement(tag) {
-      if (tag === 'canvas') return createCanvas(1, 1);
-      return {};
-    },
-  };
-  sandbox.URL = { createObjectURL() { return 'blob:x'; }, revokeObjectURL() {} };
-  vm.createContext(sandbox);
-  for (const f of ['js/imaging.js', 'js/glyphs.js', 'js/render.js', 'js/charcnn.js', 'js/harvest.js', 'js/assignment.js']) {
-    vm.runInContext(fs.readFileSync(path.join(PROJECT, f), 'utf8'), sandbox);
-  }
+async function loadEngines() {
+  global.Image = Image;
+  installDocument(() => createCanvas(1, 1));
   const weightsPath = path.join(PROJECT, 'assets', 'charcnn.json');
-  if (fs.existsSync(weightsPath) && sandbox.CharCNN) {
-    const raw = JSON.parse(fs.readFileSync(weightsPath, 'utf8'));
-    sandbox.fetch = async function (url) {
-      if (String(url).indexOf('charcnn') >= 0) {
-        return { ok: true, json: async () => raw };
-      }
-      return { ok: false, status: 404, json: async () => ({}) };
-    };
+  if (!fs.existsSync(weightsPath)) throw new Error('CharCNN weights missing: ' + weightsPath);
+  const raw = JSON.parse(fs.readFileSync(weightsPath, 'utf8'));
+  global.fetch = async function (url) {
+    if (String(url).indexOf('charcnn') >= 0) {
+      return { ok: true, json: async () => raw };
+    }
+    return { ok: false, status: 404, json: async () => ({}) };
+  };
+  const sb = {
+    Imaging: await loadLib('imaging', 'Imaging'),
+    Glyphs: await loadLib('glyphs', 'Glyphs'),
+    Rendering: await loadLib('render', 'Rendering'),
+    CharCNN: await loadLib('charcnn', 'CharCNN'),
+    Harvest: await loadLib('harvest', 'Harvest'),
+    Assignment: await loadLib('assignment', 'Assignment'),
+  };
+  try {
+    await sb.CharCNN.load(['assets/charcnn.json']);
+  } catch (err) {
+    throw new Error('CharCNN load failed: ' + (err && err.message ? err.message : err));
   }
-  return sandbox;
+  if (!sb.CharCNN.isReady()) throw new Error('CharCNN load failed');
+  return sb;
 }
 
 async function toCanvas(file) {
@@ -77,7 +76,7 @@ async function main() {
   check('sample_page_2 exists', fs.existsSync(path.join(FIX, 'sample_page_2.jpg')));
   check('glyph_sheet exists', fs.existsSync(path.join(FIX, 'glyph_sheet.jpg')));
 
-  const sb = loadEngines();
+  const sb = await loadEngines();
   const page1 = await toCanvas(path.join(FIX, 'sample_page_1.jpg'));
   const page2 = await toCanvas(path.join(FIX, 'sample_page_2.jpg'));
   const sheet = await toCanvas(path.join(FIX, 'glyph_sheet.jpg'));
@@ -194,17 +193,12 @@ async function main() {
       if (name.includes('phone')) {
         check(name + ' paper still light', /^#[0-9a-f]{6}$/i.test(a.paper));
       }
-      if (sb.Harvest) {
-        if (sb.CharCNN && !sb.CharCNN.isReady()) {
-          try { await sb.CharCNN.load(['assets/charcnn.json']); } catch (_) { /* freq fallback */ }
-        }
-        const crops = sb.CharCNN && sb.CharCNN.isReady()
-          ? await sb.Harvest.harvestFromPagesAsync([c], { maxCrops: 80, maxPerChar: 3 })
-          : sb.Harvest.harvestFromPages([c], { maxCrops: 80, maxPerChar: 3, allowFreqFallback: true });
-        harvestCounts.push(crops.length);
-        check(name + ' harvests letter crops', crops.length >= 8, String(crops.length));
-        check(name + ' harvest crops labeled', crops.every((g) => g.ch && g.url), 'labels');
-      }
+      const crops = await sb.Harvest.harvestFromPagesAsync([c], { maxCrops: 80, maxPerChar: 3 });
+      harvestCounts.push(crops.length);
+      check(name + ' harvests letter crops', crops.length >= 1, String(crops.length));
+      check(name + ' labels came from recognition',
+        crops.length > 0 && crops.every((g) => g.ch && g.url && !g.freqFallback && g.cnnConf >= 0.18),
+        'n=' + crops.length);
     }
     if (harvestCounts.length) {
       const minH = Math.min(...harvestCounts);
@@ -216,9 +210,10 @@ async function main() {
     /* Render using harvest-only pack from lined exam */
     const exam = await toCanvas(path.join(ASSIGN, 'exam_lined_neat_blue.jpg'));
     const examStats = sb.Imaging.analyze(exam);
-    const examCrops = sb.CharCNN && sb.CharCNN.isReady()
-      ? await sb.Harvest.harvestFromPagesAsync([exam], { maxCrops: 100, maxPerChar: 4 })
-      : sb.Harvest.harvestFromPages([exam], { maxCrops: 100, maxPerChar: 4, allowFreqFallback: true });
+    const examCrops = await sb.Harvest.harvestFromPagesAsync([exam], { maxCrops: 100, maxPerChar: 4 });
+    check('exam labels came from recognition',
+      examCrops.length > 0 && examCrops.every((g) => !g.freqFallback && g.cnnConf >= 0.18),
+      'n=' + examCrops.length);
     await sb.Glyphs.hydrate({ glyphs: examCrops });
     const harvestPack = {
       name: 'harvest-exam',
@@ -254,7 +249,8 @@ async function main() {
       check('assignment styleScore in range', scored.score >= 12 && scored.score <= 98, String(scored.score));
     }
   } else {
-    console.log('  skip assignment fixtures (run npm run fixtures:assignments)');
+    console.error('pipeline: assignment fixtures are missing');
+    process.exit(1);
   }
 
   await sb.Glyphs.hydrate({ glyphs: exact.glyphs });

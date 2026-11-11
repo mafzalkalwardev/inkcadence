@@ -29,8 +29,6 @@ jobs:
           npm ci --prefix web
       - name: Test
         run: npm test
-      - name: Check web engines match js/
-        run: npm run check:engines
       - name: Build the browser app
         run: npm run build --prefix web
       - name: Assemble the Pages site

@@ -1,12 +1,10 @@
 'use strict';
-/* Loads js/config.js + js/store.js in a fake browser and drives the on-device
-   store. The API is gone from this tree (see experimental/backend), so there
-   is no remote mode to stand up. Run with: npm test */
+/* Imports web/src/lib/store.js and drives the on-device store. The API is gone
+   from this tree (see experimental/backend), so there is no remote mode to
+   stand up. Run with: npm test */
 
 const path = require('path');
-const fs = require('fs');
-const vm = require('vm');
-const crypto = require('crypto');
+const { pathToFileURL } = require('url');
 
 const PROJECT = path.join(__dirname, '..');
 
@@ -27,45 +25,22 @@ function fakeStorage() {
   };
 }
 
-function loadBrowser(apiBase, storage) {
-  const sandbox = {};
-  sandbox.window = sandbox;
-  sandbox.self = sandbox;
-  sandbox.localStorage = storage;
-  sandbox.fetch = (url, opts) => fetch(url, opts);
-  sandbox.TextEncoder = TextEncoder;
-  sandbox.TextDecoder = TextDecoder;
-  sandbox.AbortController = AbortController;
-  sandbox.crypto = crypto.webcrypto;
-  sandbox.console = console;
-  sandbox.setTimeout = setTimeout;
-  sandbox.clearTimeout = clearTimeout;
-  sandbox.clearInterval = clearInterval;
-  sandbox.setInterval = setInterval;
-  sandbox.Promise = Promise;
-  sandbox.Date = Date;
-  sandbox.Math = Math;
-  sandbox.JSON = JSON;
-  sandbox.Error = Error;
-  sandbox.Object = Object;
-  sandbox.Array = Array;
-  sandbox.String = String;
-  sandbox.Number = Number;
-  sandbox.Uint8Array = Uint8Array;
-  sandbox.encodeURIComponent = encodeURIComponent;
-  sandbox.INKCADENCE_CONFIG = { apiBase: apiBase, remote: 'auto' };
-  vm.createContext(sandbox);
-
-  vm.runInContext(fs.readFileSync(path.join(PROJECT, 'js/config.js'), 'utf8'), sandbox);
-  sandbox.INKCADENCE_CONFIG.apiBase = apiBase;
-  vm.runInContext(fs.readFileSync(path.join(PROJECT, 'js/store.js'), 'utf8'), sandbox);
-  return sandbox.Store;
+let storeCase = 0;
+async function loadBrowser(apiBase, storage) {
+  global.localStorage = storage;
+  global.window = global;
+  const cfg = await import(pathToFileURL(path.join(PROJECT, 'web', 'src', 'lib', 'config.js')).href);
+  cfg.INKCADENCE_CONFIG.apiBase = apiBase;
+  cfg.INKCADENCE_CONFIG.remote = 'auto';
+  const href = pathToFileURL(path.join(PROJECT, 'web', 'src', 'lib', 'store.js')).href + '?case=' + (++storeCase);
+  const mod = await import(href);
+  return mod.Store;
 }
 
 async function main() {
   console.log('-- Store when the API is unreachable --');
   const storage = fakeStorage();
-  const Store = loadBrowser('http://127.0.0.1:9', storage);
+  const Store = await loadBrowser('http://127.0.0.1:9', storage);
   const mode = await Store.ready;
   check('falls back to local', mode === 'local', 'got ' + mode);
   check('mode() agrees', Store.mode() === 'local');
