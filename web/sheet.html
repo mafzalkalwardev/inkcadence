@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inkcadence letter sheet</title>
+  <style>
+    @page { size: A4 portrait; margin: 0; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background: #e7e1d6;
+      color: #1c2838;
+      font: 15px/1.4 "Segoe UI", sans-serif;
+    }
+    .bar {
+      position: sticky; top: 0; z-index: 2;
+      display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+      padding: 12px 16px; background: #122033; color: #f4efe6;
+    }
+    .bar h1 { font-size: 16px; margin: 0 8px 0 0; font-weight: 650; }
+    .bar p { margin: 0; flex: 1 1 220px; color: #c5d0dc; font-size: 13px; }
+    button {
+      font: inherit; font-weight: 650; border: 0; border-radius: 8px;
+      padding: 8px 14px; background: #2f6fed; color: #fff; cursor: pointer;
+    }
+    button.ghost { background: transparent; color: #f4efe6; border: 1px solid #3d5168; }
+    .stage { padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+    .page-wrap { width: min(210mm, 100%); background: #fff; }
+    canvas.page { display: block; width: 100%; height: auto; }
+    .print-copy { display: none; }
+    @media print {
+      body { background: #fff; }
+      .bar, .stage { display: contents; }
+      .page-wrap { width: 210mm; height: 297mm; page-break-after: always; break-after: page; }
+      canvas.page { display: none; }
+      .print-copy { display: block; width: 210mm; height: 297mm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <h1>Letter sheet</h1>
+    <p>Print at 100% on A4. Write one character in each box, then photograph the whole page.</p>
+    <button type="button" id="printBtn">Print</button>
+    <button type="button" class="ghost" id="pdfBtn">Download PDF</button>
+  </div>
+  <div class="stage" id="stage"></div>
+  <script type="module" src="/src/sheet-page.js"></script>
+</body>
+</html>

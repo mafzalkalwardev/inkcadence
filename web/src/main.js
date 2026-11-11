@@ -9,6 +9,7 @@ import { CharCNN } from './lib/charcnn.js';
 import { Harvest } from './lib/harvest.js';
 import { Assignment } from './lib/assignment.js';
 import { PackShare } from './lib/packshare.js';
+import { LetterSheet } from './lib/lettersheet.js';
 import { packQuality, tryPhrase } from './lib/qa.js';
 
 CharCNN.load(['/charcnn.json', 'charcnn.json']).catch(function (err) {
@@ -22,6 +23,7 @@ const S = {
   activeId: null,
   refImages: [],
   sheetSrc: null,
+  sheetReads: [],
   lastPages: [],
   pen: null,
   wizardStep: 1,
@@ -152,19 +154,13 @@ function trainWizardHtml() {
     </div>
     <div id="wiz2" hidden>
       <div class="drop">
-        <h4>Template sheet</h4>
-        <p class="small muted">Print, fill every character, photograph flat. <a href="${import.meta.env.BASE_URL}sheet.html" target="_blank">Open printable sheet ↗</a></p>
-        <input type="file" id="fileSheet" accept="image/*" hidden>
-        <button class="ghost tiny" id="btnPickSheet">Upload filled sheet</button>
+        <h4>Letter sheet</h4>
+        <p class="small muted">Print the sheet, write in the boxes, and photograph each whole page. The corner marks line the photo up. <a href="${import.meta.env.BASE_URL}sheet.html" target="_blank">Open letter sheet ↗</a></p>
+        <input type="file" id="fileSheet" accept="image/*" multiple hidden>
+        <button class="ghost tiny" id="btnPickSheet">Upload sheet photos</button>
         <div id="sheetWrap" hidden>
-          <canvas id="sheetCanvas" style="width:100%;max-width:520px;border:1px solid var(--line);border-radius:8px;background:#fff"></canvas>
-          <div class="grid2" style="gap:6px;margin-top:8px">
-            <div><label class="small muted">Left %</label><input id="gx" type="range" min="0" max="60" value="4.5" step="0.5"></div>
-            <div><label class="small muted">Top %</label><input id="gy" type="range" min="0" max="70" value="8.5" step="0.5"></div>
-            <div><label class="small muted">Width %</label><input id="gw" type="range" min="30" max="100" value="91" step="0.5"></div>
-            <div><label class="small muted">Height %</label><input id="gh" type="range" min="20" max="95" value="86" step="0.5"></div>
-            <div style="grid-column:1/-1"><button type="button" class="ghost tiny" id="btnAutoGrid">Auto-align grid</button></div>
-          </div>
+          <div class="thumbs" id="thumbsSheet"></div>
+          <p class="small muted" id="sheetSummary"></p>
         </div>
       </div>
       <div class="row" style="margin-top:14px">
@@ -340,48 +336,17 @@ function syncPenSwatches() {
   });
 }
 
-function gridRect(src) {
-  const x = src.width * (+$('#gx').value / 100);
-  const y = src.height * (+$('#gy').value / 100);
-  const w = src.width * (+$('#gw').value / 100);
-  const h = src.height * (+$('#gh').value / 100);
-  return { x, y, w: Math.min(w, src.width - x), h: Math.min(h, src.height - y) };
-}
-
-function setGridPercents(p) {
-  if ($('#gx')) $('#gx').value = String(p.gx);
-  if ($('#gy')) $('#gy').value = String(p.gy);
-  if ($('#gw')) $('#gw').value = String(p.gw);
-  if ($('#gh')) $('#gh').value = String(p.gh);
-}
-
-function autoAlignSheetGrid() {
-  if (!S.sheetSrc || !Glyphs.detectSheetGrid) return;
-  const rect = Glyphs.detectSheetGrid(S.sheetSrc, Glyphs.COLS, Glyphs.ROWS);
-  setGridPercents(Glyphs.rectToPercents(rect, S.sheetSrc.width, S.sheetSrc.height));
-}
-
-function drawSheetPreview() {
-  const src = S.sheetSrc;
-  const cv = $('#sheetCanvas');
-  if (!src || !cv) return;
-  const W = 520, H = Math.round(W * src.height / src.width);
-  cv.width = W; cv.height = H;
-  const ctx = cv.getContext('2d');
-  ctx.drawImage(src, 0, 0, W, H);
-  const rect = gridRect(src);
-  const sx = W / src.width, sy = H / src.height;
-  const cw = rect.w / Glyphs.COLS, ch = rect.h / Glyphs.ROWS;
-  ctx.strokeStyle = 'rgba(47,111,237,.85)';
-  ctx.lineWidth = 1;
-  for (let i = 0; i <= Glyphs.COLS; i++) {
-    const x = (rect.x + i * cw) * sx;
-    ctx.beginPath(); ctx.moveTo(x, rect.y * sy); ctx.lineTo(x, (rect.y + rect.h) * sy); ctx.stroke();
-  }
-  for (let j = 0; j <= Glyphs.ROWS; j++) {
-    const y = (rect.y + j * ch) * sy;
-    ctx.beginPath(); ctx.moveTo(rect.x * sx, y); ctx.lineTo((rect.x + rect.w) * sx, y); ctx.stroke();
-  }
+function showSheetThumbs() {
+  const host = $('#thumbsSheet');
+  if (!host) return;
+  host.innerHTML = '';
+  S.sheetReads.forEach((read) => {
+    const note = document.createElement('p');
+    note.className = 'small muted';
+    const label = read.kind === 'fill-in' ? 'Fill-in' : 'Page ' + (read.page + 1);
+    note.textContent = label + ': ' + read.glyphs.length + ' letters, ' + read.missing.length + ' empty boxes.';
+    host.appendChild(note);
+  });
   $('#sheetWrap').hidden = false;
 }
 
@@ -392,13 +357,15 @@ async function buildDraftPack() {
     stats = Imaging.mergeAnalyses(S.refImages.map((c) => Imaging.analyze(c)));
   }
   let glyphs = [], missing = [], cellH = 92, cellW = 70;
-  if (S.sheetSrc) {
-    const rect = gridRect(S.sheetSrc);
-    const res = Glyphs.extractGlyphs(S.sheetSrc, rect, Glyphs.COLS, Glyphs.ROWS, Glyphs.CHARS);
-    glyphs = res.glyphs;
-    missing = res.missing;
-    cellH = rect.h / Glyphs.ROWS;
-    cellW = rect.w / Glyphs.COLS;
+  if (S.sheetReads.length) {
+    S.sheetReads.forEach((read) => {
+      glyphs = glyphs.concat(read.glyphs);
+      missing = missing.concat(read.missing);
+    });
+    if (glyphs[0]) {
+      cellH = glyphs[0].cellH || cellH;
+      cellW = glyphs[0].cellW || cellW;
+    }
   }
   let harvested = [];
   const hadSheetGlyphs = glyphs.length > 0;
@@ -509,7 +476,7 @@ function wireApp() {
     };
   });
   $('#btnNewPack').onclick = () => {
-    S.activeId = null; S.draftPack = null; S.refImages = []; S.sheetSrc = null;
+    S.activeId = null; S.draftPack = null; S.refImages = []; S.sheetSrc = null; S.sheetReads = [];
     $('#packName').value = '';
     $('#thumbsRef').innerHTML = '';
     setWizard(1);
@@ -534,29 +501,24 @@ function wireApp() {
     });
   };
   $('#fileSheet').onchange = () => {
-    const f = ($('#fileSheet').files || [])[0];
-    if (!f) return;
-    Imaging.loadImageFile(f).then((c) => {
-      S.sheetSrc = c;
-      autoAlignSheetGrid();
-      drawSheetPreview();
-      card($('#buildMsg'), 'Sheet loaded. Grid auto-aligned — tweak if needed.');
+    const files = [...($('#fileSheet').files || [])].slice(0, 4);
+    if (!files.length) return;
+    card($('#buildMsg'), 'Lining up the corner marks…');
+    Promise.all(files.map((f) => Imaging.loadImageFile(f))).then(async (cans) => {
+      const reads = [];
+      for (const c of cans) reads.push(LetterSheet.read(c));
+      S.sheetReads = reads;
+      S.sheetSrc = cans[0] || null;
+      showSheetThumbs();
+      const letters = reads.reduce((n, r) => n + r.glyphs.length, 0);
+      card($('#buildMsg'), letters + ' letters read from ' + reads.length + ' photo' + (reads.length === 1 ? '' : 's') + '.');
     }).catch((e) => card($('#buildMsg'), e.message, 'bad'));
   };
-  ['gx', 'gy', 'gw', 'gh'].forEach((id) => $('#' + id).addEventListener('input', drawSheetPreview));
-  if ($('#btnAutoGrid')) {
-    $('#btnAutoGrid').onclick = () => {
-      if (!S.sheetSrc) { card($('#buildMsg'), 'Load a sheet first.', 'bad'); return; }
-      autoAlignSheetGrid();
-      drawSheetPreview();
-      card($('#buildMsg'), 'Grid re-aligned from the sheet scan.');
-    };
-  }
 
   $('#wizNext1').onclick = () => setWizard(2);
   $('#wizBack2').onclick = () => setWizard(1);
   $('#wizNext2').onclick = async () => {
-    if (!S.refImages.length && !S.sheetSrc) {
+    if (!S.refImages.length && !S.sheetReads.length) {
       card($('#buildMsg'), 'Add samples or a sheet first.', 'bad');
       return;
     }
