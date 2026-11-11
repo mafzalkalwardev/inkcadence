@@ -53,7 +53,12 @@ async function main() {
   // Ensure Pages workflow includes classic app.
   const pagesYml = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'pages.yml'), 'utf8');
   assert.ok(pagesYml.includes('_site/classic'), 'Pages deploys classic writer');
-  assert.ok(pagesYml.includes('sync_engines_to_web'), 'Pages syncs engines');
+  assert.ok(pagesYml.includes('check:engines'), 'Pages checks web engines match js/ before building');
+  const webLib = path.join(__dirname, '..', 'web', 'src', 'lib');
+  fs.readdirSync(webLib).filter((f) => f.endsWith('.js')).forEach((f) => {
+    const src = fs.readFileSync(path.join(webLib, f), 'utf8');
+    assert.ok(!/\bglobal\.[A-Z]/.test(src), f + ' must not use Node-only `global.X` (breaks in browsers)');
+  });
 
   const Harvest = await loadModule('harvest', 'Harvest');
   assert.ok(typeof Harvest.harvestFromPages === 'function', 'synced Harvest');

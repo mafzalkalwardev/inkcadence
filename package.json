@@ -55,6 +55,7 @@
     "lint": "node --check server/app.js && node --check server/auth.js && node --check server/packs.js && node --check web/src/main.js",
     "serve:static": "npx --yes serve . -l 4173",
     "sync:engines": "node scripts/sync_engines_to_web.js",
+    "check:engines": "node scripts/sync_engines_to_web.js --check",
     "train:charcnn": "python3 ml/train_char_cnn.py",
     "train:charcnn:quick": "python3 ml/train_char_cnn.py --quick"
   },

@@ -29,10 +29,10 @@ jobs:
           npm ci --prefix web
       - name: Test
         run: npm test
+      - name: Check web engines match js/
+        run: npm run check:engines
       - name: Build the browser app
         run: npm run build --prefix web
-      - name: Sync engines into web
-        run: node scripts/sync_engines_to_web.js
       - name: Assemble the Pages site
         run: |
           mkdir -p _site/app _site/classic/js _site/classic/assets

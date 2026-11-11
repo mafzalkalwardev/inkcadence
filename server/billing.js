@@ -94,12 +94,18 @@ async function handleWebhook(req, res) {
 
   const stripe = getStripe();
   const sig = req.headers['stripe-signature'];
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!secret) {
+    // An empty secret would let anyone forge a valid signature and grant themselves a plan.
+    log('error', 'stripe.webhook_secret_missing', {});
+    return res.status(503).send('Webhook not configured');
+  }
   let event;
   try {
     event = stripe.webhooks.constructEvent(
       req.rawBody || req.body,
       sig,
-      process.env.STRIPE_WEBHOOK_SECRET || ''
+      secret
     );
   } catch (err) {
     log('error', 'stripe.webhook_invalid', { error: err.message });

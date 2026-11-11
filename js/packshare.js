@@ -28,6 +28,38 @@
     return 'INK1.' + b64;
   }
 
+  /* Imported packs are untrusted: the UI renders these fields into HTML, and every
+     github.io project shares one origin. Keep only values of the expected shape. */
+  var HEX_COLOUR = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+  var GLYPH_URL = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+\/=]+$/;
+  function finiteOrUndef(v) { var n = Number(v); return v != null && isFinite(n) ? n : undefined; }
+  function shortText(v, max) { return typeof v === 'string' ? v.slice(0, max) : undefined; }
+  function isChar(v) { return typeof v === 'string' && v.length >= 1 && v.length <= 2; }
+
+  function sanitizeImported(data) {
+    data.name = shortText(data.name, 120) || 'Imported hand';
+    data.baseStyleName = shortText(data.baseStyleName, 120);
+    data.headingStyle = shortText(data.headingStyle, 120);
+    data.penColours = Array.isArray(data.penColours)
+      ? data.penColours.filter(function (c) { return typeof c === 'string' && HEX_COLOUR.test(c); })
+      : [];
+    data.missing = Array.isArray(data.missing) ? data.missing.filter(isChar) : [];
+    data.glyphs = Array.isArray(data.glyphs)
+      ? data.glyphs.filter(function (g) {
+        return g && typeof g === 'object' && typeof g.url === 'string' && GLYPH_URL.test(g.url) && isChar(g.ch);
+      })
+      : [];
+    data.harvestedCount = finiteOrUndef(data.harvestedCount);
+    data.styleScore = finiteOrUndef(data.styleScore);
+    if (data.stats && typeof data.stats === 'object' && !Array.isArray(data.stats)) {
+      ['strokeWidth', 'slant', 'pages'].forEach(function (k) {
+        if (k in data.stats) data.stats[k] = finiteOrUndef(data.stats[k]);
+      });
+    } else {
+      data.stats = {};
+    }
+  }
+
   function decodeShare(text) {
     var s = String(text || '').trim();
     if (s.indexOf('INK1.') === 0) s = s.slice(5);
@@ -40,7 +72,8 @@
     var data = typeof json === 'string' ? JSON.parse(json) : json;
     if (data && data.pack) data = data.pack;
     if (data && data.format && data.pack) data = data.pack;
-    if (!data || typeof data !== 'object') throw new Error('Invalid pack file');
+    if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Invalid pack file');
+    sanitizeImported(data);
     data.id = 'pk_import_' + Date.now().toString(36);
     data.created = Date.now();
     data.builtin = false;
@@ -118,14 +151,18 @@
     add('<< /Type /Pages /Count ' + pages.length + ' /Kids [' + kids.join(' ') + '] >>');
     endObj();
 
+    /* PDF units are points (1/72 in). Pages are A4-proportioned canvases, so fit the
+       canvas to A4 width (210 mm = 595.28 pt) instead of using pixels as points. */
+    var PW = 595.28, PH = +(H * PW / W).toFixed(2);
+
     pageObjs.forEach(function (po) {
-      var stream = 'q\n' + W + ' 0 0 ' + H + ' 0 0 cm\n/Im' + po.imgId + ' Do\nQ\n';
+      var stream = 'q\n' + PW + ' 0 0 ' + PH + ' 0 0 cm\n/Im' + po.imgId + ' Do\nQ\n';
       beginObj();
       add('<< /Length ' + stream.length + ' >>\nstream\n' + stream + 'endstream');
       endObj();
 
       beginObj();
-      add('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + W + ' ' + H + '] ' +
+      add('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + PW + ' ' + PH + '] ' +
         '/Contents ' + po.contentId + ' 0 R /Resources << /XObject << /Im' + po.imgId +
         ' ' + po.imgId + ' 0 R >> >> >>');
       endObj();

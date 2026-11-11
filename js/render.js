@@ -406,7 +406,10 @@
     var imgs = pages.map(function (c) {
       return '<img src="' + c.toDataURL('image/jpeg', 0.92) + '">';
     }).join('');
-    return '<!doctype html><html><head><title>' + (title || 'Inkcadence') + '</title><style>' +
+    var safeTitle = String(title || 'Inkcadence').replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+    return '<!doctype html><html><head><title>' + safeTitle + '</title><style>' +
       '@page{size:A4;margin:0}body{margin:0;background:#fff}' +
       'img{display:block;width:210mm;height:297mm;page-break-after:always}' +
       '</style></head><body>' + imgs + '</body></html>';
