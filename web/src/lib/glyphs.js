@@ -130,7 +130,8 @@ var CHARS = 'abcdefghijklmnopqrstuvwxyz' +
       for (var xx = 0; xx < gw; xx++) {
         var sp = (yy + minY) * sw + (xx + minX);
         var op = (yy * gw + xx) * 4;
-        od.data[op] = 255; od.data[op + 1] = 255; od.data[op + 2] = 255;
+        var si = sp * 4;
+        od.data[op] = d[si]; od.data[op + 1] = d[si + 1]; od.data[op + 2] = d[si + 2];
         od.data[op + 3] = alpha[sp];
       }
     }
@@ -344,8 +345,9 @@ var CHARS = 'abcdefghijklmnopqrstuvwxyz' +
     return map;
   }
 
-  const Glyphs = {
+    const Glyphs = {
     CHARS: CHARS, COLS: COLS, ROWS: ROWS,
+    extractCell: extractCell,
     extractGlyphs: extractGlyphs,
     detectSheetGrid: detectSheetGrid,
     scoreSheetGrid: scoreSheetGrid,
