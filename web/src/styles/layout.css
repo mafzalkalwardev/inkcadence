@@ -107,17 +107,15 @@ html[data-theme="dark"] .hero::after {
 .sidebar {
   position: relative;
   overflow: hidden;
-  background:
-    radial-gradient(420px 280px at 0% 0%, rgba(47, 111, 237, 0.28), transparent 60%),
-    radial-gradient(360px 240px at 100% 100%, rgba(23, 125, 79, 0.12), transparent 55%),
-    linear-gradient(185deg, #0c1524 0%, #132033 48%, #0f1a2b 100%);
-  color: #c8d3e4;
+  background: var(--side);
+  color: var(--side-ink);
   padding: 20px 16px 16px;
   display: flex;
   flex-direction: column;
   gap: 0;
-  border-right: 1px solid rgba(120, 150, 200, 0.12);
+  border-right: 1px solid var(--side-line);
 }
+.mark { color: var(--accent); display: block; }
 .sidebar-brand {
   position: relative;
   display: flex;
@@ -125,20 +123,20 @@ html[data-theme="dark"] .hero::after {
   gap: 11px;
   padding: 2px 6px 16px;
   margin-bottom: 4px;
-  border-bottom: 1px solid rgba(140, 170, 210, 0.12);
+  border-bottom: 1px solid var(--side-line);
 }
 .sidebar-brand .brand-name {
   font-family: var(--font-display);
   font-weight: 700;
-  color: #fff;
-  font-size: 1.2rem;
+  color: var(--side-ink);
+  font-size: 1.25rem;
   letter-spacing: -0.03em;
   line-height: 1.1;
 }
 .sidebar-brand .brand-tag {
   display: block;
-  font-size: 11px;
-  color: #8fa0b8;
+  font-size: 12px;
+  color: var(--side-muted);
   font-weight: 500;
   margin-top: 2px;
 }
@@ -146,10 +144,10 @@ html[data-theme="dark"] .hero::after {
   margin: 12px 4px 14px;
   padding: 10px 12px;
   border-radius: 12px;
-  background: rgba(255, 196, 120, 0.12);
-  border: 1px solid rgba(255, 196, 120, 0.35);
-  color: #f3e2c4;
-  font-size: 12.5px;
+  background: var(--hint-bg);
+  border: 1px solid var(--hint-line);
+  color: var(--hint-ink);
+  font-size: 13px;
   line-height: 1.45;
 }
 .sidebar-who {
@@ -187,23 +185,25 @@ html[data-theme="dark"] .hero::after {
 }
 .sidebar-section-head h3 {
   font-family: var(--font-body);
-  font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
-  color: #7b8aa3; margin: 0; font-weight: 700;
+  font-size: 13px;
+  color: var(--side-muted);
+  margin: 0;
+  font-weight: 700;
 }
 .pack-count {
-  font-size: 11px; font-weight: 700; color: #9eb0c8;
-  background: rgba(255, 255, 255, 0.06); border-radius: 999px; padding: 2px 8px;
+  font-size: 12px; font-weight: 700; color: var(--side-muted);
+  background: var(--side-item); border-radius: 999px; padding: 2px 8px;
 }
 .plist {
   list-style: none; margin: 0; padding: 0 2px 8px;
   display: flex; flex-direction: column; gap: 7px;
   overflow: auto; max-height: min(48vh, 420px);
-  scrollbar-width: thin; scrollbar-color: #2a3c55 transparent;
+  scrollbar-width: thin;
 }
 .plist li {
   position: relative;
-  background: rgba(22, 36, 55, 0.85);
-  border: 1px solid rgba(60, 90, 130, 0.28);
+  background: var(--side-item);
+  border: 1px solid var(--side-line);
   border-radius: 12px;
   padding: 10px 10px 10px 12px;
   cursor: pointer;
@@ -211,19 +211,18 @@ html[data-theme="dark"] .hero::after {
   justify-content: space-between;
   gap: 8px;
   align-items: center;
-  font-size: 13px;
-  color: #d7e0ec;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  font-size: 14px;
+  color: var(--side-item-ink);
 }
 .plist li.empty {
   cursor: default; border-style: dashed; background: transparent;
-  color: #8fa0b8; font-size: 12.5px; line-height: 1.45; padding: 14px 12px;
+  color: var(--side-muted); font-size: 13px; line-height: 1.45; padding: 14px 12px;
   justify-content: flex-start;
 }
-.plist li:hover { background: #1b2c42; border-color: rgba(90, 130, 190, 0.35); }
+.plist li:hover { border-color: var(--accent); }
 .plist li.active {
-  border-color: rgba(47, 111, 237, 0.75);
-  background: linear-gradient(90deg, rgba(47, 111, 237, 0.18), rgba(23, 38, 60, 0.9));
+  border-color: var(--accent);
+  background: var(--side-item-active);
   box-shadow: inset 3px 0 0 var(--accent);
 }
 .plist .dot {
@@ -234,30 +233,28 @@ html[data-theme="dark"] .hero::after {
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600;
 }
 .plist .pmeta {
-  display: block; font-size: 10.5px; color: #7b8aa3; font-weight: 500; margin-top: 2px;
+  display: block; font-size: 12px; color: var(--side-muted); font-weight: 500; margin-top: 2px;
 }
 .plist .pack-del {
-  opacity: 0.55; background: transparent; color: #aebcd0; border: 0; border-radius: 8px;
-  padding: 4px 8px; font-size: 14px; line-height: 1; cursor: pointer; box-shadow: none;
+  opacity: 0.7; background: transparent; color: var(--side-muted); border: 0; border-radius: 8px;
+  padding: 4px 8px; font-size: 16px; line-height: 1; cursor: pointer;
 }
 .plist li:hover .pack-del, .plist li.active .pack-del { opacity: 1; }
-.plist .pack-del:hover { background: rgba(180, 35, 42, 0.2); color: #ffb4b4; }
+.plist .pack-del:hover { background: var(--err-bg); color: var(--bad); }
 .sidebar-actions {
   position: relative; display: flex; flex-direction: column; gap: 8px;
   padding-top: 12px; margin-top: 4px;
-  border-top: 1px solid rgba(140, 170, 210, 0.12);
+  border-top: 1px solid var(--side-line);
 }
 .sidebar-actions .btn-new {
-  width: 100%; border-radius: 11px; padding: 11px 14px; font-weight: 700; font-size: 13px;
-  background: linear-gradient(180deg, #3d7af5, #2f6fed);
-  box-shadow: 0 8px 20px rgba(47, 111, 237, 0.28);
+  width: 100%; border-radius: 12px; padding: 12px 14px; font-weight: 700; font-size: 15px;
 }
 .sidebar-actions .btn-ghost {
-  width: 100%; border-radius: 11px; padding: 9px 14px; font-size: 12.5px; font-weight: 600;
-  background: rgba(255, 255, 255, 0.04); color: #b7c4d6;
-  border: 1px solid rgba(150, 180, 220, 0.12); box-shadow: none;
+  width: 100%; border-radius: 12px; padding: 10px 14px; font-size: 14px; font-weight: 650;
+  background: transparent; color: var(--side-ink);
+  border: 1px solid var(--side-line);
 }
-.sidebar-actions .btn-ghost:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.sidebar-actions .btn-ghost:hover { background: var(--side-item); }
 
 .workspace {
   padding: 22px clamp(16px, 3vw, 28px) 60px;
@@ -278,7 +275,7 @@ html[data-theme="dark"] .hero::after {
   padding: 8px 14px;
   box-shadow: none;
 }
-.tabs button.on { background: var(--accent-soft); color: var(--accent-deep); }
+.tabs button.on { background: var(--accent); color: var(--on-accent); }
 .tabs button:hover { transform: none; }
 
 .drop {
@@ -349,14 +346,14 @@ canvas.page {
   font-size: 12.5px;
   font-weight: 700;
 }
-.wizard-steps .step.on { background: var(--accent); color: #fff; }
+.wizard-steps .step.on { background: var(--accent); color: var(--on-accent); }
 .wizard-steps .step.done { background: var(--step-done-bg); color: var(--ok); }
 
 .meter {
   height: 10px; border-radius: 999px; background: var(--meter-bg); overflow: hidden; margin: 8px 0 4px;
 }
 .meter > span {
-  display: block; height: 100%; background: linear-gradient(90deg, var(--accent), #5b8fff);
+  display: block; height: 100%; background: var(--accent);
   width: 0%; transition: width 0.35s ease;
 }
 
