@@ -49,7 +49,7 @@ function applyTheme(theme, persist) {
     try { localStorage.setItem(THEME_KEY, theme); } catch { /* private mode */ }
   }
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', theme === 'dark' ? '#0c141e' : '#f3efe6');
+  if (meta) meta.setAttribute('content', theme === 'dark' ? '#14110e' : '#f4efe6');
 }
 
 function initTheme() {
@@ -77,13 +77,9 @@ function wireThemeToggle() {
 
 initTheme();
 
-function brandSvg(id) {
-  return `<svg width="36" height="36" viewBox="0 0 128 128" aria-hidden="true">
-    <defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#8fb6ff"/><stop offset=".48" stop-color="#2a5bd0"/><stop offset="1" stop-color="#16307a"/>
-    </linearGradient></defs>
-    <path fill="none" stroke="url(#${id})" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"
-      stroke-dasharray="240" pathLength="240" style="animation:strokeDraw 1.2s ease both"
+function brandSvg() {
+  return `<svg class="mark" width="36" height="36" viewBox="0 0 128 128" aria-hidden="true">
+    <path fill="none" stroke="currentColor" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"
       d="M14 96 C26 96 28 32 44 32 C60 32 58 104 74 104 C90 104 92 40 112 40"/>
   </svg>`;
 }
@@ -96,7 +92,7 @@ async function renderApp() {
   <div class="app-shell">
     <aside class="sidebar" aria-label="Hands">
       <div class="sidebar-brand">
-        ${brandSvg('lgSide')}
+        ${brandSvg()}
         <div>
           <span class="brand-name">Inkcadence</span>
           <span class="brand-tag">your hand, on every page</span>
@@ -117,8 +113,8 @@ async function renderApp() {
     </aside>
     <main class="workspace">
       <div class="tabs">
-        <button data-tab="train" class="on">1 · Train</button>
-        <button data-tab="write">2 · Write</button>
+        <button data-tab="train" class="on">Make a hand</button>
+        <button data-tab="write">Write</button>
       </div>
       <section id="tabTrain">${trainWizardHtml()}</section>
       <section id="tabWrite" hidden>${writeHtml()}</section>
@@ -132,20 +128,25 @@ async function renderApp() {
 
 function trainWizardHtml() {
   return `
+  <div class="welcome" aria-label="How it works">
+    <div><strong>1. Your pages</strong><span>Photos of notes you already wrote.</span></div>
+    <div><strong>2. Letter sheet</strong><span>Print it, fill the boxes, photograph it.</span></div>
+    <div><strong>3. Write</strong><span>Type your words. The page uses your letters.</span></div>
+  </div>
   <div class="panel rise">
-    <h2>Build a hand</h2>
-    <p class="muted small">Samples teach the look; the letter sheet captures letterforms; a check scores the hand before save.</p>
+    <h2>Make a hand</h2>
+    <p class="muted">Name it, add a few pages, then the letter sheet.</p>
     <div class="wizard-steps">
-      <span class="step on" data-step="1">1 Samples</span>
+      <span class="step on" data-step="1">1 Pages</span>
       <span class="step" data-step="2">2 Sheet</span>
-      <span class="step" data-step="3">3 Quality</span>
+      <span class="step" data-step="3">3 Check</span>
       <span class="step" data-step="4">4 Save</span>
     </div>
-    <div class="field"><label>Hand name</label><input id="packName" placeholder="e.g. My blue-pen hand"></div>
+    <div class="field"><label>Name</label><input id="packName" placeholder="For example, blue pen"></div>
     <div id="wiz1">
       <div class="drop">
-        <h4>Pages</h4>
-        <p class="small muted">1–8 photos or scans for pen colours, slant, stroke width, spacing.</p>
+        <h4>Your pages</h4>
+        <p class="small muted">Add 1 to 8 photos. These teach the pen, the slant, and the spacing.</p>
         <input type="file" id="fileRef" accept="image/*" multiple hidden>
         <button class="ghost tiny" id="btnPickRef">Choose images</button>
         <div class="thumbs" id="thumbsRef"></div>
@@ -155,7 +156,7 @@ function trainWizardHtml() {
     <div id="wiz2" hidden>
       <div class="drop">
         <h4>Letter sheet</h4>
-        <p class="small muted">Print the sheet, write in the boxes, and photograph each whole page. The corner marks line the photo up. <a href="${import.meta.env.BASE_URL}sheet.html" target="_blank">Open letter sheet ↗</a></p>
+        <p class="small muted">Print both pages, write one character in each box, then photograph each page with all four corner marks in the frame. <a href="${import.meta.env.BASE_URL}sheet.html" target="_blank">Open the letter sheet</a></p>
         <input type="file" id="fileSheet" accept="image/*" multiple hidden>
         <button class="ghost tiny" id="btnPickSheet">Upload sheet photos</button>
         <div id="sheetWrap" hidden>
@@ -165,7 +166,7 @@ function trainWizardHtml() {
       </div>
       <div class="row" style="margin-top:14px">
         <button class="ghost" id="wizBack2">Back</button>
-        <button id="wizNext2">Analyze &amp; score</button>
+        <button id="wizNext2">Check this hand</button>
       </div>
     </div>
     <div id="wiz3" hidden>
@@ -182,7 +183,7 @@ function trainWizardHtml() {
       </div>
     </div>
     <div id="wiz4" hidden>
-      <p class="hint">Ready to save. Photos stay in this session only. The saved hand keeps letterforms, not the page images.</p>
+      <p class="hint">Save keeps the letters, not the photos. The photos stay in this browser session only.</p>
       <div class="row">
         <button class="ghost" id="wizBack4">Back</button>
         <button id="btnBuild">Save hand</button>
@@ -191,39 +192,41 @@ function trainWizardHtml() {
     </div>
     <div id="buildMsg" style="margin-top:12px"></div>
   </div>
-  <div class="panel" id="resultCard" hidden><h3>Extracted style</h3><div id="resultBody"></div></div>`;
+  <div class="panel" id="resultCard" hidden><h3>Letters from this hand</h3><div id="resultBody"></div></div>`;
 }
 
 function writeHtml() {
   return `
   <div class="panel rise">
-    <h2>Write a page</h2>
+    <h2>Write</h2>
+    <p class="muted">Pick a hand, type the words, then write the page. Start a line with # to make a heading.</p>
     <div class="field"><label>Hand</label><select id="wPack"></select></div>
-    <div class="field"><label>Text — start a line with <code>#</code> for a heading</label>
+    <div class="field"><label>Words</label>
       <textarea id="wText"># Notes
 
 Write the words you want on the page. The letters come from your hand.</textarea>
     </div>
     <div class="grid2">
-      <div>
-        <div class="field"><label>Ink</label><div class="swatch" id="wColor"></div></div>
-        <div class="field"><label>Paper</label>
-          <select id="wPaper"><option value="ruled">Lined A4</option><option value="plain">Blank A4</option><option value="grid">Grid A4</option></select>
-        </div>
-        <div class="field"><label>Heading style</label>
-          <select id="wHeading"><option value="underline">Underline</option><option value="double">Double</option><option value="none">None</option></select>
-        </div>
-      </div>
-      <div>
-        <div class="field"><label>Writing size</label><input id="wSize" type="range" min="22" max="56" value="34"></div>
-        <div class="field"><label>Natural variation</label><input id="wJitter" type="range" min="0" max="150" value="55"></div>
-        <div class="field"><label>Page seed</label><input id="wSeed" type="range" min="1" max="99" value="7"></div>
+      <div class="field"><label>Ink</label><div class="swatch" id="wColor"></div></div>
+      <div class="field"><label>Paper</label>
+        <select id="wPaper"><option value="ruled">Lined</option><option value="plain">Blank</option><option value="grid">Grid</option></select>
       </div>
     </div>
+    <details class="more">
+      <summary>More options</summary>
+      <div class="grid2">
+        <div class="field"><label>Heading line</label>
+          <select id="wHeading"><option value="underline">Underline</option><option value="double">Double line</option><option value="none">None</option></select>
+        </div>
+        <div class="field"><label>Size</label><input id="wSize" type="range" min="22" max="56" value="34"></div>
+        <div class="field"><label>Variation</label><input id="wJitter" type="range" min="0" max="150" value="55"></div>
+        <div class="field"><label>Page variety</label><input id="wSeed" type="range" min="1" max="99" value="7"></div>
+      </div>
+    </details>
     <div class="row">
-      <button id="btnRender">Render pages</button>
-      <button class="ghost" id="btnPrint">Print / PDF</button>
-      <label class="small muted" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="wMark" checked style="width:auto"> AI watermark</label>
+      <button id="btnRender">Write the page</button>
+      <button class="ghost" id="btnPrint">Print</button>
+      <label class="small muted" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="wMark" checked style="width:auto"> Show the AI-assisted note</label>
     </div>
     <div id="writeMsg" style="margin-top:10px"></div>
   </div>
