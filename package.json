@@ -42,12 +42,13 @@
     "fixtures:assignments": "python scripts/make_assignment_fixtures.py",
     "lint": "node --check web/src/main.js && node --check js/app.js && node --check js/store.js && node --check js/config.js",
     "serve:static": "npx --yes serve . -l 4173",
-    "sync:engines": "node scripts/sync_engines_to_web.js",
-    "check:engines": "node scripts/sync_engines_to_web.js --check",
     "train:charcnn": "python3 tools/charcnn/train_char_cnn.py",
     "train:charcnn:quick": "python3 tools/charcnn/train_char_cnn.py --quick"
   },
   "engines": {
     "node": ">=18"
+  },
+  "devDependencies": {
+    "canvas": "^3.2.3"
   }
 }

@@ -53,7 +53,31 @@ async function main() {
   // Ensure Pages workflow includes classic app.
   const pagesYml = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'pages.yml'), 'utf8');
   assert.ok(pagesYml.includes('_site/classic'), 'Pages deploys classic writer');
-  assert.ok(pagesYml.includes('check:engines'), 'Pages checks web engines match js/ before building');
+  assert.ok(!pagesYml.includes('check:engines'), 'Pages no longer syncs engines from js/');
+  assert.ok(!fs.existsSync(path.join(__dirname, '..', 'scripts', 'sync_engines_to_web.js')), 'sync script removed');
+  assert.ok(!fs.existsSync(path.join(__dirname, '..', 'scripts', 'convert-engines.mjs')), 'convert script removed');
+  const engines = ['imaging', 'glyphs', 'render', 'presets', 'charcnn', 'harvest', 'assignment', 'packshare'];
+  const repo = path.join(__dirname, '..');
+  function copiesOutsideJs(fileName) {
+    const found = [];
+    function walk(dir) {
+      for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (ent.name === 'node_modules' || ent.name === 'dist' || ent.name === '.git') continue;
+        const p = path.join(dir, ent.name);
+        if (ent.isDirectory()) {
+          if (ent.name === 'js' && dir === repo) continue;
+          walk(p);
+        } else if (ent.name === fileName) found.push(p);
+      }
+    }
+    walk(repo);
+    return found;
+  }
+  for (const name of engines) {
+    const found = copiesOutsideJs(name + '.js');
+    assert.strictEqual(found.length, 1, name + ' copies outside js/: ' + found.join(', '));
+    assert.ok(found[0].replace(/\\/g, '/').endsWith('web/src/lib/' + name + '.js'), found[0]);
+  }
   const webLib = path.join(__dirname, '..', 'web', 'src', 'lib');
   fs.readdirSync(webLib).filter((f) => f.endsWith('.js')).forEach((f) => {
     const src = fs.readFileSync(path.join(webLib, f), 'utf8');
@@ -61,11 +85,11 @@ async function main() {
   });
 
   const Harvest = await loadModule('harvest', 'Harvest');
-  assert.ok(typeof Harvest.harvestFromPages === 'function', 'synced Harvest');
-  assert.ok(typeof Harvest.medianCellMetrics === 'function', 'synced medianCellMetrics');
+  assert.ok(typeof Harvest.harvestFromPages === 'function', 'Harvest');
+  assert.ok(typeof Harvest.medianCellMetrics === 'function', 'medianCellMetrics');
 
   const Imaging = await loadModule('imaging', 'Imaging');
-  assert.ok(typeof Imaging.guessPaperStyle === 'function', 'synced guessPaperStyle');
+  assert.ok(typeof Imaging.guessPaperStyle === 'function', 'guessPaperStyle');
 
   const assignDir = path.join(__dirname, 'fixtures', 'samples', 'assignments');
   if (fs.existsSync(assignDir)) {
