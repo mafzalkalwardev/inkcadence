@@ -10,7 +10,6 @@ import { Harvest } from './lib/harvest.js';
 import { Assignment } from './lib/assignment.js';
 import { PackShare } from './lib/packshare.js';
 import { packQuality, tryPhrase } from './lib/qa.js';
-import { INKCADENCE_CONFIG } from './lib/config.js';
 
 CharCNN.load(['/charcnn.json', 'charcnn.json']).catch(function (err) {
   console.warn('[CharCNN]', err && err.message ? err.message : err);
@@ -19,7 +18,6 @@ CharCNN.load(['/charcnn.json', 'charcnn.json']).catch(function (err) {
 const root = document.getElementById('app');
 
 const S = {
-  user: null,
   packs: [],
   activeId: null,
   refImages: [],
@@ -29,7 +27,6 @@ const S = {
   wizardStep: 1,
   draftPack: null,
   renderMode: 'auto',
-  route: 'marketing',
 };
 
 function $(sel, el = document) {
@@ -89,214 +86,13 @@ function brandSvg(id) {
   </svg>`;
 }
 
-function parseRoute() {
-  const hash = location.hash.replace(/^#/, '') || '/';
-  if (hash.startsWith('/app')) return 'app';
-  if (hash.startsWith('/login') || hash.startsWith('/auth')) return 'auth';
-  if (hash.startsWith('/pricing')) return 'pricing';
-  if (hash.startsWith('/legal')) return 'legal';
-  if (hash.startsWith('/verify') || hash.startsWith('/reset')) return 'auth';
-  return 'marketing';
-}
-
-function navigate(path) {
-  location.hash = path;
-}
-
-/* ---------------- marketing ---------------- */
-function renderMarketing() {
-  root.innerHTML = `
-  <div class="marketing">
-    <nav class="marketing-nav">
-      <a class="brand-mark" href="#/">${brandSvg('lgNav')}<strong>Inkcadence</strong></a>
-      <div class="row">
-        <a class="small muted" href="#/pricing">Pricing</a>
-        ${themeToggleHtml()}
-        <button class="ghost tiny" id="navLogin">Log in</button>
-        <button class="tiny" id="navStart">Open app</button>
-      </div>
-    </nav>
-    <section class="hero">
-      <div class="hero-inner">
-        ${brandSvg('lgHero')}
-        <h1 class="hero-brand">Ink<span>cadence</span></h1>
-        <p>Your hand, on every page — learn from your own assignments, then write new ones with the same ink, slant, and letterforms.</p>
-        <div class="row hero-cta">
-          <button id="ctaStart">Start writing</button>
-          <button class="ghost" id="ctaSelfhost">Archived API</button>
-        </div>
-      </div>
-    </section>
-    <footer class="marketing-nav muted small">
-      <span>Runs in the browser, on your device</span>
-      <a href="#/legal">Privacy &amp; terms</a>
-    </footer>
-  </div>`;
-  $('#navLogin').onclick = () => navigate('/login');
-  $('#navStart').onclick = () => goAppOrAuth();
-  $('#ctaStart').onclick = () => goAppOrAuth();
-  $('#ctaSelfhost').onclick = () => { window.open('https://github.com/mafzalkalwardev/inkcadence/blob/experimental/backend/SELFHOST.md', '_blank'); };
-  wireThemeToggle();
-}
-
-function renderPricing() {
-  root.innerHTML = `
-  <div class="marketing">
-    <nav class="marketing-nav">
-      <a class="brand-mark" href="#/">${brandSvg('lgPrice')}<strong>Inkcadence</strong></a>
-      <div class="row">${themeToggleHtml()}<button class="tiny" id="back">Back</button></div>
-    </nav>
-    <section class="hero">
-      <div class="hero-inner rise">
-        <h1 class="hero-brand" style="font-size:clamp(2.2rem,5vw,3.4rem)">Free in the browser.</h1>
-        <p>This app runs on your device. The old API, database, and payments code are archived.</p>
-        <div class="grid2" style="text-align:left;margin-top:24px">
-          <div class="panel"><h3>On this device</h3><p class="muted small">Writing stays in the browser. There is no account server in this tree.</p></div>
-          <div class="panel"><h3>Archived API</h3><p class="muted small">The old API and neural service are kept on a branch, not in this build.</p><button class="ghost" id="toDocs">Read the archive notes</button></div>
-        </div>
-      </div>
-    </section>
-  </div>`;
-  $('#back').onclick = () => navigate('/');
-  $('#toDocs').onclick = () => window.open('https://github.com/mafzalkalwardev/inkcadence/blob/experimental/backend/SELFHOST.md', '_blank');
-  wireThemeToggle();
-}
-
-function renderLegal() {
-  root.innerHTML = `
-  <div class="marketing">
-    <nav class="marketing-nav">
-      <a class="brand-mark" href="#/">${brandSvg('lgLegal')}<strong>Inkcadence</strong></a>
-      ${themeToggleHtml()}
-    </nav>
-    <article class="legal panel rise">
-      <h1>Privacy &amp; terms</h1>
-      <p>Inkcadence processes handwriting samples in the browser. Photos stay on the device.</p>
-      <p><b>AI-assisted handwriting disclosure:</b> generated pages may include an optional note. Do not use outputs to forge signatures, certificates, or official documents.</p>
-      <p class="muted small">MIT licensed.</p>
-    </article>
-  </div>`;
-  wireThemeToggle();
-}
-
-/* ---------------- auth ---------------- */
-function renderAuth() {
-  const hash = location.hash;
-  const isReset = hash.includes('/reset');
-  const isVerify = hash.includes('/verify');
-  root.innerHTML = `
-  <div class="auth-shell">
-    <div class="panel auth-panel">
-      ${brandSvg('lgAuth')}
-      <h1 class="brand">Inkcadence</h1>
-      <p class="tag">Your hand, on every page.</p>
-      <p class="muted small">Train on your own pages, then generate new ones in your own hand.</p>
-      ${isReset ? resetForm() : isVerify ? verifyForm() : loginForm()}
-      <div id="authMsg" class="msg"></div>
-      <p class="muted small" id="storeNote" style="margin-top:16px"></p>
-      <p class="small" style="margin-top:12px"><a href="#/">← Back to home</a></p>
-      <div class="row" style="margin-top:10px">${themeToggleHtml()}</div>
-    </div>
-  </div>`;
-  wireAuth();
-  wireThemeToggle();
-  Store.ready.then((mode) => {
-    const note = $('#storeNote');
-    if (!note) return;
-    if (mode === 'remote') {
-      note.textContent = 'Account and style packs sync to the Inkcadence server. Samples stay in this browser; only the extracted profile is uploaded.';
-    } else if (INKCADENCE_CONFIG.apiBase) {
-      note.innerHTML = 'Server unreachable — local-only account in this browser.';
-    } else {
-      note.textContent = 'Local account. Data lives in this browser and is never uploaded.';
-    }
-  });
-}
-
-function loginForm() {
-  return `
-    <div class="field"><label>Username</label><input id="authUser" autocomplete="username" placeholder="e.g. aarav"></div>
-    <div class="field"><label>Password</label><input id="authPass" type="password" autocomplete="current-password" placeholder="at least 8 characters"></div>
-    <div class="field"><label>Email <span class="muted">(optional)</span></label><input id="authEmail" type="email" autocomplete="email" placeholder="for recovery"></div>
-    <div class="row"><button id="btnLogin" style="flex:2">Log in</button><button id="btnSignup" class="ghost" style="flex:1">Create</button></div>`;
-}
-function resetForm() {
-  return `
-    <div class="field"><label>New password</label><input id="resetPass" type="password" placeholder="at least 8 characters"></div>
-    <button id="btnReset">Set new password</button>`;
-}
-function verifyForm() {
-  return `<p class="hint">Confirming your email…</p><button id="btnVerify">Verify email</button>`;
-}
-
-function wireAuth() {
-  const msg = (t, k) => { const el = $('#authMsg'); el.className = 'msg' + (k ? ' ' + k : ''); el.textContent = t || ''; };
-  if ($('#btnLogin')) {
-    $('#btnLogin').onclick = () => {
-      msg('Checking…');
-      Store.login($('#authUser').value, $('#authPass').value)
-        .then((u) => { S.user = u; navigate('/app'); })
-        .catch((e) => msg(e.message, 'bad'));
-    };
-    $('#btnSignup').onclick = () => {
-      msg('Creating…');
-      const email = $('#authEmail')?.value;
-      // Store.signup currently username+password; email goes via API body extension if remote.
-      Store.signup($('#authUser').value, $('#authPass').value, email)
-        .then((u) => { S.user = u; navigate('/app'); })
-        .catch((e) => msg(e.message, 'bad'));
-    };
-    $('#authPass').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#btnLogin').click(); });
-  }
-  if ($('#btnReset')) {
-    const token = new URLSearchParams(location.hash.split('?')[1] || '').get('token');
-    $('#btnReset').onclick = async () => {
-      try {
-        const res = await fetch((INKCADENCE_CONFIG.apiBase || '') + '/api/auth/reset-password', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ token, password: $('#resetPass').value }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error?.message || 'Reset failed');
-        msg('Password updated. You can log in.', 'ok');
-      } catch (e) { msg(e.message, 'bad'); }
-    };
-  }
-  if ($('#btnVerify')) {
-    const token = new URLSearchParams(location.hash.split('?')[1] || '').get('token');
-    $('#btnVerify').onclick = async () => {
-      try {
-        const res = await fetch((INKCADENCE_CONFIG.apiBase || '') + '/api/auth/verify-email', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ token }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error?.message || 'Verify failed');
-        msg('Email verified.', 'ok');
-      } catch (e) { msg(e.message, 'bad'); }
-    };
-  }
-}
-
-async function goAppOrAuth() {
-  const u = S.user || await Store.currentUser();
-  if (u) { S.user = u; navigate('/app'); }
-  else navigate('/login');
-}
-
 /* ---------------- app shell ---------------- */
 async function renderApp() {
-  if (!S.user) {
-    S.user = await Store.currentUser();
-    if (!S.user) return navigate('/login');
-  }
   await refreshPacks();
-  const remote = Store.mode() === 'remote';
+  const canSave = Store.persistent();
   root.innerHTML = `
   <div class="app-shell">
-    <aside class="sidebar" aria-label="Account and style packs">
+    <aside class="sidebar" aria-label="Hands">
       <div class="sidebar-brand">
         ${brandSvg('lgSide')}
         <div>
@@ -304,25 +100,17 @@ async function renderApp() {
           <span class="brand-tag">your hand, on every page</span>
         </div>
       </div>
-      <div class="sidebar-who">
-        <div class="avatar" id="avatar">${esc(String(S.user).charAt(0).toUpperCase())}</div>
-        <div style="min-width:0">
-          <div class="uname" id="whoami">${esc(S.user)}</div>
-          <div style="margin-top:4px"><span class="mode-pill ${remote ? 'synced' : 'on-device'}" id="accountMode">${remote ? 'synced' : 'on device'}</span></div>
-        </div>
-      </div>
+      ${canSave ? '' : '<p class="save-notice" id="saveNotice">Hands can\'t be saved in this browser. This session keeps them in memory until you close the tab.</p>'}
       <div class="sidebar-section">
         <div class="sidebar-section-head">
-          <h3>Style packs</h3>
+          <h3>Hands</h3>
           <span class="pack-count" id="packCount">0</span>
         </div>
         <ul class="plist" id="packList"></ul>
       </div>
       <div class="sidebar-actions">
-        <button class="btn-new" id="btnNewPack">＋ New style pack</button>
-        <button class="btn-ghost" id="btnHome">Marketing</button>
+        <button class="btn-new" id="btnNewPack">＋ New hand</button>
         ${themeToggleHtml('btn-ghost')}
-        <button class="btn-ghost" id="btnLogout">Log out</button>
       </div>
     </aside>
     <main class="workspace">
@@ -343,18 +131,18 @@ async function renderApp() {
 function trainWizardHtml() {
   return `
   <div class="panel rise">
-    <h2>Train a style pack</h2>
-    <p class="muted small">Guided classical training — samples teach the look; the sheet captures letterforms; QA scores the pack before save.</p>
+    <h2>Build a hand</h2>
+    <p class="muted small">Samples teach the look; the letter sheet captures letterforms; a check scores the hand before save.</p>
     <div class="wizard-steps">
       <span class="step on" data-step="1">1 Samples</span>
       <span class="step" data-step="2">2 Sheet</span>
       <span class="step" data-step="3">3 Quality</span>
       <span class="step" data-step="4">4 Save</span>
     </div>
-    <div class="field"><label>Pack name</label><input id="packName" placeholder="e.g. My blue-pen hand"></div>
+    <div class="field"><label>Hand name</label><input id="packName" placeholder="e.g. My blue-pen hand"></div>
     <div id="wiz1">
       <div class="drop">
-        <h4>Old assignments</h4>
+        <h4>Pages</h4>
         <p class="small muted">1–8 photos or scans for pen colours, slant, stroke width, spacing.</p>
         <input type="file" id="fileRef" accept="image/*" multiple hidden>
         <button class="ghost tiny" id="btnPickRef">Choose images</button>
@@ -398,10 +186,10 @@ function trainWizardHtml() {
       </div>
     </div>
     <div id="wiz4" hidden>
-      <p class="hint">Ready to save. Classical glyphs stay in the pack; neural training is optional later.</p>
+      <p class="hint">Ready to save. Photos stay in this session only. The saved hand keeps letterforms, not the page images.</p>
       <div class="row">
         <button class="ghost" id="wizBack4">Back</button>
-        <button id="btnBuild">Save style pack</button>
+        <button id="btnBuild">Save hand</button>
         <span class="small muted" id="buildState"></span>
       </div>
     </div>
@@ -414,20 +202,11 @@ function writeHtml() {
   return `
   <div class="panel rise">
     <h2>Write a page</h2>
-    <div class="field"><label>Style pack</label><select id="wPack"></select></div>
-    <div class="field"><label>Writer</label>
-      <select id="wMode">
-        <option value="auto">Auto (neural if ready)</option>
-        <option value="classical">Classical</option>
-        <option value="neural">Neural</option>
-      </select>
-    </div>
+    <div class="field"><label>Hand</label><select id="wPack"></select></div>
     <div class="field"><label>Text — start a line with <code>#</code> for a heading</label>
-      <textarea id="wText"># Assignment — Inkcadence
-Name: ______     Roll: ______
+      <textarea id="wText"># Notes
 
-The classical engine stamps your captured letterforms with natural jitter.
-When a neural model is ready for this pack, Auto mode uses it and falls back silently if the ML service is down.</textarea>
+Write the words you want on the page. The letters come from your hand.</textarea>
     </div>
     <div class="grid2">
       <div>
@@ -448,7 +227,6 @@ When a neural model is ready for this pack, Auto mode uses it and falls back sil
     <div class="row">
       <button id="btnRender">Render pages</button>
       <button class="ghost" id="btnPrint">Print / PDF</button>
-      <button class="ghost" id="btnTrainNeural">Train neural model</button>
       <label class="small muted" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="wMark" checked style="width:auto"> AI watermark</label>
     </div>
     <div id="writeMsg" style="margin-top:10px"></div>
@@ -475,7 +253,7 @@ function card(el, html, kind) {
 }
 
 async function refreshPacks() {
-  S.packs = (await Store.packs(S.user)) || [];
+  S.packs = (await Store.hands()) || [];
   if (!S.activeId && S.packs.length) S.activeId = S.packs[0].id;
   if (!S.packs.some((p) => p.id === S.activeId)) S.activeId = S.packs[0]?.id || null;
 }
@@ -487,7 +265,7 @@ function renderPackList() {
   if (count) count.textContent = String(S.packs.length);
   ul.innerHTML = '';
   if (!S.packs.length) {
-    ul.innerHTML = '<li class="empty">No packs yet. Train your first handwriting style to see it here.</li>';
+    ul.innerHTML = '<li class="empty">No hands yet. Build one from your pages to see it here.</li>';
     return;
   }
   S.packs.forEach((p) => {
@@ -496,7 +274,7 @@ function renderPackList() {
     li.title = p.name;
     const glyphs = (p.glyphs && p.glyphs.length) || 0;
     const pens = (p.penColours && p.penColours.length) || 0;
-    const meta = glyphs ? `${glyphs} glyphs${pens ? ' · ' + pens + ' ink' : ''}` : 'Style pack';
+    const meta = glyphs ? `${glyphs} letters${pens ? ' · ' + pens + ' ink' : ''}` : 'Hand';
     li.innerHTML = `<span class="dot" style="background:${esc((p.penColours && p.penColours[0]) || '#2f6fed')}"></span>
       <div style="flex:1;min-width:0"><span class="pname">${esc(p.name)}</span><span class="pmeta">${esc(meta)}</span></div>`;
     const del = document.createElement('button');
@@ -507,7 +285,7 @@ function renderPackList() {
     del.onclick = (ev) => {
       ev.stopPropagation();
       if (!confirm('Delete "' + p.name + '"?')) return;
-      Store.deletePack(S.user, p.id).then((list) => {
+      Store.deleteHand(p.id).then((list) => {
         S.packs = list;
         if (S.activeId === p.id) S.activeId = list[0]?.id || null;
         renderPackList();
@@ -525,13 +303,13 @@ function renderPackSelect() {
   if (!sel) return;
   sel.innerHTML = '';
   if (!S.packs.length) {
-    sel.innerHTML = '<option value="">— no style pack yet —</option>';
+    sel.innerHTML = '<option value="">— no hand yet —</option>';
     return;
   }
   S.packs.forEach((p) => {
     const o = document.createElement('option');
     o.value = p.id;
-    o.textContent = p.name + (p.modelStatus === 'ready' ? ' · neural ready' : '');
+    o.textContent = p.name;
     if (p.id === S.activeId) o.selected = true;
     sel.appendChild(o);
   });
@@ -730,8 +508,6 @@ function wireApp() {
       if (b.dataset.tab === 'write') syncPenSwatches();
     };
   });
-  $('#btnLogout').onclick = () => Store.logout().then(() => { S.user = null; navigate('/login'); });
-  $('#btnHome').onclick = () => navigate('/');
   $('#btnNewPack').onclick = () => {
     S.activeId = null; S.draftPack = null; S.refImages = []; S.sheetSrc = null;
     $('#packName').value = '';
@@ -821,12 +597,12 @@ function wireApp() {
 
   $('#btnBuild').onclick = async () => {
     const pack = S.draftPack || (await buildDraftPack());
-    if (!$('#packName').value.trim()) { card($('#buildMsg'), 'Name the pack first.', 'bad'); return; }
+    if (!$('#packName').value.trim()) { card($('#buildMsg'), 'Name the hand first.', 'bad'); return; }
     pack.name = $('#packName').value.trim();
     $('#btnBuild').disabled = true;
     $('#buildState').textContent = 'saving…';
     try {
-      const saved = await Store.savePack(S.user, pack);
+      const saved = await Store.saveHand(pack);
       S.activeId = saved.id || pack.id;
       await refreshPacks();
       renderPackList();
@@ -848,89 +624,29 @@ function wireApp() {
 
   $('#btnRender').onclick = async () => {
     const pack = activePack();
-    if (!pack) { card($('#writeMsg'), 'Create a style pack first.', 'bad'); return; }
+    if (!pack) { card($('#writeMsg'), 'Build a hand first.', 'bad'); return; }
     const btn = $('#btnRender');
     btn.disabled = true;
     card($('#writeMsg'), 'Laying out pages…');
     try {
-      const mode = $('#wMode').value;
-      let neuralPages = null;
-      if (mode !== 'classical' && Store.mode() === 'remote' && pack.id) {
-        try {
-          const token = localStorage.getItem('inkcadence:token');
-          const res = await fetch((INKCADENCE_CONFIG.apiBase || '') + '/api/packs/' + encodeURIComponent(pack.id) + '/infer', {
-            method: 'POST',
-            headers: {
-              'content-type': 'application/json',
-              ...(token ? { authorization: 'Bearer ' + token } : {}),
-            },
-            body: JSON.stringify({ text: $('#wText').value, renderMode: mode, options: {} }),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (data.glyphs?.length) {
-              const neuralPack = { ...pack, glyphs: data.glyphs, fontFamily: null };
-              await Glyphs.hydrate(neuralPack);
-              neuralPages = Rendering.renderPages({
-                text: $('#wText').value,
-                pack: neuralPack,
-                size: +$('#wSize').value,
-                jitter: +$('#wJitter').value / 100,
-                seed: +$('#wSeed').value,
-                penColour: S.pen || pack.penColours?.[0] || '#1b2a4a',
-                paper: $('#wPaper').value,
-                paperColour: pack.paper || '#fdfcf7',
-                headingStyle: $('#wHeading').value,
-                watermark: $('#wMark').checked,
-                continuity: true,
-                pageNumbers: true,
-              });
-            } else if (data.pages?.length) {
-              neuralPages = data.pages;
-            }
-          }
-        } catch { /* classical fallback */ }
-      }
-
-      let pages;
-      if (Array.isArray(neuralPages) && neuralPages[0] && neuralPages[0].getContext) {
-        pages = neuralPages;
-        card($('#writeMsg'), 'Rendered with neural glyph atlas.');
-      } else if (Array.isArray(neuralPages) && typeof neuralPages[0] === 'string') {
-        const imgs = neuralPages.map((dataUrl) => {
-          const img = new Image();
-          img.src = dataUrl;
-          return img;
-        });
-        await Promise.all(imgs.map((img) => new Promise((r) => { img.onload = r; img.onerror = r; })));
-        pages = imgs.map((img) => {
-          const c = document.createElement('canvas');
-          c.width = img.naturalWidth || Rendering.PAGE_W;
-          c.height = img.naturalHeight || Rendering.PAGE_H;
-          c.getContext('2d').drawImage(img, 0, 0);
-          return c;
-        });
-        card($('#writeMsg'), 'Rendered with neural writer.');
-      } else {
-        await Glyphs.hydrate(pack);
-        pages = Rendering.renderPages({
-          text: $('#wText').value,
-          pack,
-          size: +$('#wSize').value,
-          jitter: +$('#wJitter').value / 100,
-          seed: +$('#wSeed').value,
-          penColour: S.pen || pack.penColours?.[0] || '#1b2a4a',
-          paper: $('#wPaper').value,
-          paperColour: pack.paper || '#fdfcf7',
-          headingStyle: $('#wHeading').value,
-          watermark: $('#wMark').checked,
-          fontFamily: pack.fontFamily,
-          tracking: pack.tracking,
-          continuity: true,
-          pageNumbers: true,
-        });
-        card($('#writeMsg'), mode === 'neural' ? 'ML unavailable — classical fallback.' : '');
-      }
+      await Glyphs.hydrate(pack);
+      const pages = Rendering.renderPages({
+        text: $('#wText').value,
+        pack,
+        size: +$('#wSize').value,
+        jitter: +$('#wJitter').value / 100,
+        seed: +$('#wSeed').value,
+        penColour: S.pen || pack.penColours?.[0] || '#1b2a4a',
+        paper: $('#wPaper').value,
+        paperColour: pack.paper || '#fdfcf7',
+        headingStyle: $('#wHeading').value,
+        watermark: $('#wMark').checked,
+        fontFamily: pack.fontFamily,
+        tracking: pack.tracking,
+        continuity: true,
+        pageNumbers: true,
+      });
+      card($('#writeMsg'), 'Pages are ready.');
 
       S.lastPages = pages;
       const host = $('#pages');
@@ -977,35 +693,10 @@ function wireApp() {
     w.document.close();
     setTimeout(() => { w.focus(); w.print(); }, 400);
   };
-
-  $('#btnTrainNeural').onclick = async () => {
-    const pack = activePack();
-    if (!pack || Store.mode() !== 'remote') {
-      card($('#writeMsg'), 'Neural training needs a synced pack on the API.', 'bad');
-      return;
-    }
-    try {
-      const token = localStorage.getItem('inkcadence:token');
-      const res = await fetch((INKCADENCE_CONFIG.apiBase || '') + '/api/packs/' + encodeURIComponent(pack.id) + '/train-model', {
-        method: 'POST',
-        headers: { authorization: 'Bearer ' + token },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error?.message || 'Train failed');
-      card($('#writeMsg'), 'Neural job queued (' + data.jobId + '). Classical writing still works.');
-    } catch (e) {
-      card($('#writeMsg'), e.message, 'bad');
-    }
-  };
 }
 
 async function router() {
   await Store.ready;
-  S.route = parseRoute();
-  if (S.route === 'marketing') return renderMarketing();
-  if (S.route === 'pricing') return renderPricing();
-  if (S.route === 'legal') return renderLegal();
-  if (S.route === 'auth') return renderAuth();
   return renderApp();
 }
 

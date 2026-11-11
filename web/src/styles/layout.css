@@ -142,6 +142,16 @@ html[data-theme="dark"] .hero::after {
   font-weight: 500;
   margin-top: 2px;
 }
+.save-notice {
+  margin: 12px 4px 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 196, 120, 0.12);
+  border: 1px solid rgba(255, 196, 120, 0.35);
+  color: #f3e2c4;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
 .sidebar-who {
   position: relative;
   display: flex;

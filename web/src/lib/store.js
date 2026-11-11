@@ -1,348 +1,293 @@
 'use strict';
-import { INKCADENCE_CONFIG as _CFG } from './config.js';
-/* store.js — Inkcadence account and style-pack storage.
+/* store.js — hands saved in this browser.
  *
- * Two drivers behind one API:
- *   remote — the Inkcadence API, authenticated with a bearer token. This is the
- *            driver used when the page is served from GitHub Pages and the API
- *            lives on another origin, where a session cookie could not be sent.
- *   local  — IndexedDB with a localStorage fallback. Used when no server is
- *            configured or the server cannot be reached, so the app still works
- *            as a plain static page.
+ * IndexedDB database "inkcadence", object store "kv" (the same database the
+ * classic writer uses). New hands live under the key "hands". Hands saved
+ * earlier under "packs:<username>" still open. Photo thumbnails are stripped
+ * before anything is written. Glyph PNGs are kept.
  *
- * caller never needs to know which one is running.
+ * When IndexedDB cannot be opened, the session keeps hands in memory and
+ * persistent() is false.
  */
+
 var NS = 'inkcadence';
-  var idb = null;
-  var useIDB = false;
+var HANDS_KEY = 'hands';
+var idb = null;
+var useIDB = false;
+var memory = {};
+var memoryReady = false;
 
-  var CFG = _CFG || {};
-  var API_BASE = String(CFG.apiBase || '').replace(/\/+$/, '');
-  var MODE = 'local';
-  var TOKEN_KEY = NS + ':token';
+var PNG_URL = /^data:image\/png(?:;|,)/i;
+var ANY_IMAGE = /^data:image\//i;
 
-  /* ------------------------------------------------------------------ local */
-
-  var localReady = (function () {
-    return new Promise(function (resolve) {
-      var settled = false;
-      function done(v) { if (!settled) { settled = true; resolve(v); } }
-      try {
-        if (!(typeof indexedDB!=="undefined"?indexedDB:undefined)) return done(false);
-        var req = indexedDB.open(NS, 1);
-        req.onupgradeneeded = function (e) {
-          var db = e.target.result;
-          if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv');
-        };
-        req.onsuccess = function () { idb = req.result; useIDB = true; done(true); };
-        req.onerror = function () { done(false); };
-        setTimeout(function () { done(useIDB); }, 2500);
-      } catch (e) { done(false); }
-    });
-  })();
-
-  function lsGet(k) {
-    try { var v = localStorage.getItem(NS + ':' + k); return v ? JSON.parse(v) : null; }
-    catch (e) { return null; }
-  }
-  function lsSet(k, v) {
-    try { localStorage.setItem(NS + ':' + k, JSON.stringify(v)); return true; }
-    catch (e) { return false; }
-  }
-
-  function get(k) {
-    return localReady.then(function () {
-      if (!useIDB) return lsGet(k);
-      return new Promise(function (resolve) {
-        try {
-          var rq = idb.transaction('kv', 'readonly').objectStore('kv').get(k);
-          rq.onsuccess = function () { resolve(rq.result === undefined ? null : rq.result); };
-          rq.onerror = function () { resolve(lsGet(k)); };
-        } catch (e) { resolve(lsGet(k)); }
-      });
-    });
-  }
-
-  function set(k, v) {
-    return localReady.then(function () {
-      if (useIDB) {
-        var ok = new Promise(function (resolve) {
-          try {
-            var tx = idb.transaction('kv', 'readwrite');
-            tx.objectStore('kv').put(v, k);
-            tx.oncomplete = function () { resolve(true); };
-            tx.onerror = function () { resolve(false); };
-          } catch (e) { resolve(false); }
-        });
-        return ok.then(function (r) { return r || lsSet(k, v); });
-      }
-      return lsSet(k, v);
-    });
-  }
-
-  function del(k) {
-    return localReady.then(function () {
-      if (useIDB) {
-        try {
-          var tx = idb.transaction('kv', 'readwrite');
-          tx.objectStore('kv').delete(k);
-        } catch (e) {}
-      }
-      try { localStorage.removeItem(NS + ':' + k); } catch (e) {}
-      return true;
-    });
-  }
-
-  function hex(buf) {
-    var s = '';
-    for (var i = 0; i < buf.length; i++) s += ('0' + buf[i].toString(16)).slice(-2);
-    return s;
-  }
-
-  function weakHash(bytes) {
-    var h = 2166136261;
-    for (var i = 0; i < bytes.length; i++) { h ^= bytes[i]; h = Math.imul(h, 16777619); }
-    return 'fnv:' + (h >>> 0).toString(16);
-  }
-
-  function hashPassword(password, salt) {
-    var enc = new TextEncoder().encode(salt + ':' + password);
-    if (crypto && crypto.subtle && crypto.subtle.digest) {
-      return crypto.subtle.digest('SHA-256', enc).then(function (d) {
-        return 'sha256:' + hex(new Uint8Array(d));
-      }).catch(function () { return weakHash(enc); });
-    }
-    return Promise.resolve(weakHash(enc));
-  }
-
-  function newSalt() {
-    var a = new Uint8Array(12);
-    if (crypto && crypto.getRandomValues) crypto.getRandomValues(a);
-    else for (var i = 0; i < 12; i++) a[i] = (Math.random() * 256) | 0;
-    return hex(a);
-  }
-
-  function users() { return get('users').then(function (u) { return u || {}; }); }
-
-  /* ----------------------------------------------------------------- remote */
-
-  function getToken() {
-    try { return localStorage.getItem(TOKEN_KEY); } catch (e) { return null; }
-  }
-  function setToken(t) {
+var localReady = (function () {
+  return new Promise(function (resolve) {
+    var settled = false;
+    function done(v) { if (!settled) { settled = true; resolve(v); } }
     try {
-      if (t) localStorage.setItem(TOKEN_KEY, t);
-      else localStorage.removeItem(TOKEN_KEY);
-    } catch (e) {}
-  }
-
-  function withTimeout(promise, ms) {
-    if (!AbortController) return promise;
-    var ctrl = new AbortController();
-    var timer = setTimeout(function () { ctrl.abort(); }, ms);
-    return promise(ctrl.signal).then(function (v) { clearTimeout(timer); return v; },
-      function (e) { clearTimeout(timer); throw e; });
-  }
-
-  function api(path, opts) {
-    opts = opts || {};
-    var headers = {};
-    if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
-    if (opts.token) headers.Authorization = 'Bearer ' + opts.token;
-    if (opts.tokenMode) headers['X-Session-Mode'] = 'token';
-
-    return withTimeout(function (signal) {
-      return fetch(API_BASE + path, {
-        method: opts.method || 'GET',
-        headers: headers,
-        body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
-        signal: signal
-      });
-    }, opts.timeout || 15000).then(function (res) {
-      return res.text().then(function (text) {
-        var data = {};
-        try { data = text ? JSON.parse(text) : {}; } catch (e) {}
-        if (!res.ok) {
-          var err = new Error((data.error && data.error.message) || ('Request failed (' + res.status + ')'));
-          err.status = res.status;
-          err.code = data.error && data.error.code;
-          throw err;
-        }
-        return data;
-      });
-    });
-  }
-
-  function mapPack(row) {
-    var p = (row.data && typeof row.data === 'object') ? Object.assign({}, row.data) : {};
-    p.id = row.id;
-    p.name = row.name;
-    p.updatedAt = row.updatedAt;
-    if (row.modelStatus != null) p.modelStatus = row.modelStatus;
-    if (row.model_status != null) p.modelStatus = row.model_status;
-    if (row.renderMode != null) p.renderMode = row.renderMode;
-    if (row.render_mode != null) p.renderMode = row.render_mode;
-    if (row.modelUri != null) p.modelUri = row.modelUri;
-    if (row.model_uri != null) p.modelUri = row.model_uri;
-    if (row.modelMetrics != null) p.modelMetrics = row.modelMetrics;
-    if (row.model_metrics != null) p.modelMetrics = row.model_metrics;
-    return p;
-  }
-
-  var ready = localReady.then(function () {
-    if (!API_BASE || CFG.remote === 'off') { MODE = 'local'; return MODE; }
-    return api('/api/health', { timeout: 4000 })
-      .then(function () { MODE = 'remote'; return MODE; })
-      .catch(function () { MODE = 'local'; return MODE; });
+      var factory = (typeof indexedDB !== 'undefined') ? indexedDB : undefined;
+      if (!factory) return done(false);
+      var req = factory.open(NS, 1);
+      req.onupgradeneeded = function (e) {
+        var db = e.target.result;
+        if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv');
+      };
+      req.onsuccess = function () { idb = req.result; useIDB = true; done(true); };
+      req.onerror = function () { done(false); };
+      setTimeout(function () { done(useIDB); }, 2500);
+    } catch (e) { done(false); }
   });
+})();
 
-  /* ------------------------------------------------------------------- auth */
-
-  function signup(name, password, email) {
-    name = (name || '').trim().toLowerCase();
-    password = password || '';
-    email = email ? String(email).trim().toLowerCase() : undefined;
-
-    if (MODE === 'remote') {
-      var body = { username: name, password: password };
-      if (email) body.email = email;
-      return api('/api/auth/signup', {
-        method: 'POST', tokenMode: true, body: body
-      }).then(function (d) {
-        if (!d.token) throw new Error('The server did not return a session token.');
-        setToken(d.token);
-        return d.user.username;
-      });
+function lsLegacyHands() {
+  var out = [];
+  var ls;
+  try { ls = (typeof localStorage !== 'undefined') ? localStorage : null; }
+  catch (e) { ls = null; }
+  if (!ls || typeof ls.length !== 'number' || typeof ls.key !== 'function') return out;
+  try {
+    for (var i = 0; i < ls.length; i++) {
+      var k = ls.key(i);
+      if (!k || k.indexOf(NS + ':packs:') !== 0) continue;
+      var parsed = JSON.parse(ls.getItem(k));
+      if (Array.isArray(parsed)) out = out.concat(parsed);
     }
+  } catch (e2) { /* unreadable legacy row */ }
+  return out;
+}
 
-    if (!/^[a-z0-9_.-]{3,24}$/.test(name)) return Promise.reject(new Error('Username: 3–24 chars, letters/digits/._- only.'));
-    if (password.length < 8) return Promise.reject(new Error('Password must be at least 8 characters.'));
-    return users().then(function (all) {
-      if (all[name]) throw new Error('That username already exists on this device.');
-      var salt = newSalt();
-      return hashPassword(password, salt).then(function (h) {
-        all[name] = { salt: salt, hash: h, created: Date.now() };
-        return set('users', all).then(function () { return set('session', name); }).then(function () { return name; });
-      });
+function get(k) {
+  return localReady.then(function () {
+    if (!useIDB) return Promise.resolve(Object.prototype.hasOwnProperty.call(memory, k) ? memory[k] : null);
+    return new Promise(function (resolve) {
+      try {
+        var rq = idb.transaction('kv', 'readonly').objectStore('kv').get(k);
+        rq.onsuccess = function () { resolve(rq.result === undefined ? null : rq.result); };
+        rq.onerror = function () { resolve(null); };
+      } catch (e) { resolve(null); }
     });
-  }
+  });
+}
 
-  function login(name, password) {
-    name = (name || '').trim().toLowerCase();
-    password = password || '';
-
-    if (MODE === 'remote') {
-      return api('/api/auth/login', {
-        method: 'POST', tokenMode: true, body: { username: name, password: password }
-      }).then(function (d) {
-        if (!d.token) throw new Error('The server did not return a session token.');
-        setToken(d.token);
-        return d.user.username;
-      });
+function set(k, v) {
+  return localReady.then(function () {
+    if (!useIDB) {
+      memory[k] = v;
+      return false;
     }
-
-    return users().then(function (all) {
-      var u = all[name];
-      if (!u) throw new Error('No account with that name on this device.');
-      return hashPassword(password, u.salt).then(function (h) {
-        if (h !== u.hash) throw new Error('Wrong password.');
-        return set('session', name).then(function () { return name; });
-      });
+    return new Promise(function (resolve) {
+      try {
+        var tx = idb.transaction('kv', 'readwrite');
+        tx.objectStore('kv').put(v, k);
+        tx.oncomplete = function () { resolve(true); };
+        tx.onerror = function () { resolve(false); };
+      } catch (e) { resolve(false); }
     });
-  }
+  });
+}
 
-  function currentUser() {
-    if (MODE === 'remote') {
-      if (!getToken()) return Promise.resolve(null);
-      return api('/api/auth/me', { token: getToken() })
-        .then(function (d) { return d.user ? d.user.username : null; })
-        .catch(function (err) {
-          if (err.status === 401 || err.status === 404) setToken(null);
-          return null;
-        });
+function entries() {
+  return localReady.then(function () {
+    if (!useIDB) {
+      return Object.keys(memory).map(function (k) { return { key: k, value: memory[k] }; });
     }
-    return get('session');
-  }
+    return new Promise(function (resolve) {
+      try {
+        var store = idb.transaction('kv', 'readonly').objectStore('kv');
+        var keysReq = store.getAllKeys();
+        keysReq.onerror = function () { resolve([]); };
+        keysReq.onsuccess = function () {
+          var keys = keysReq.result || [];
+          var out = [];
+          var i = 0;
+          function next() {
+            if (i >= keys.length) return resolve(out);
+            var key = keys[i++];
+            var g = store.get(key);
+            g.onerror = function () { next(); };
+            g.onsuccess = function () {
+              out.push({ key: key, value: g.result });
+              next();
+            };
+          }
+          next();
+        };
+      } catch (e) { resolve([]); }
+    });
+  });
+}
 
-  function logout() {
-    if (MODE === 'remote') {
-      var token = getToken();
-      setToken(null);
-      if (!token) return Promise.resolve(true);
-      return api('/api/auth/logout', { method: 'POST', token: token })
-        .then(function () { return true; })
-        .catch(function () { return true; });
+function isGlyph(node) {
+  return !!(node && typeof node.ch === 'string' && node.ch.length >= 1 && node.ch.length <= 2);
+}
+
+function stripImages(hand) {
+  var copy = JSON.parse(JSON.stringify(hand, function (key, value) {
+    if (key === '_img' || key === '__id' || key === 'thumbs' || key === 'thumb' || key === 'photo' || key === 'photos') return undefined;
+    if (typeof value === 'function') return undefined;
+    return value;
+  }));
+  walk(copy);
+  if (copy.stats && typeof copy.stats === 'object') delete copy.stats.thumbs;
+  return copy;
+}
+
+function walk(node) {
+  if (!node || typeof node !== 'object') return;
+  if (Array.isArray(node)) {
+    node.forEach(walk);
+    return;
+  }
+  Object.keys(node).forEach(function (k) {
+    var v = node[k];
+    if (k === 'thumbs' || k === 'thumb' || k === '_img' || k === 'photo' || k === 'photos') {
+      delete node[k];
+      return;
     }
-    return del('session');
-  }
-
-  /* ------------------------------------------------------------------ packs */
-
-  function packs(user) {
-    if (MODE === 'remote') {
-      return api('/api/packs?include=data', { token: getToken() })
-        .then(function (d) { return d.packs.map(mapPack); });
+    if (typeof v === 'string' && ANY_IMAGE.test(v)) {
+      if (!(k === 'url' && PNG_URL.test(v) && isGlyph(node))) delete node[k];
+      return;
     }
-    return get('packs:' + user).then(function (p) { return p || []; });
-  }
+    if (v && typeof v === 'object') walk(v);
+  });
+}
 
-  function plainPack(pack) {
-    return JSON.parse(JSON.stringify(pack, function (key, value) {
-      if (key === '_img' || key === '__id') return undefined;
-      if (typeof value === 'function') return undefined;
-      return value;
-    }));
-  }
+function mergeById(primary, legacy) {
+  var seen = {};
+  var out = [];
+  primary.forEach(function (p) {
+    if (!p || !p.id || seen[p.id]) return;
+    seen[p.id] = true;
+    out.push(p);
+  });
+  legacy.forEach(function (p) {
+    if (!p || !p.id || seen[p.id]) return;
+    seen[p.id] = true;
+    out.push(p);
+  });
+  return out;
+}
 
-  function savePack(user, pack) {
-    pack = plainPack(pack);
-    if (MODE === 'remote') {
-      var token = getToken();
-      var payload = { name: pack.name || 'Untitled', data: pack };
+function present(list) {
+  return list.map(function (p) {
+    try { return stripImages(p); }
+    catch (e) { return null; }
+  }).filter(Boolean);
+}
 
-      if (pack.id) {
-        return api('/api/packs/' + encodeURIComponent(pack.id), { method: 'PATCH', body: payload, token: token })
-          .then(function (d) { return mapPack(d.pack); })
-          .catch(function (err) {
-            if (err.status !== 404) throw err;
-            return api('/api/packs', { method: 'POST', body: payload, token: token })
-              .then(function (d) { return mapPack(d.pack); });
-          });
+function dirty(before, after) {
+  try { return JSON.stringify(before) !== JSON.stringify(after); }
+  catch (e) { return false; }
+}
+
+function scrubLocalPhotos() {
+  var ls;
+  try { ls = (typeof localStorage !== 'undefined') ? localStorage : null; }
+  catch (e) { ls = null; }
+  if (!ls || typeof ls.length !== 'number' || typeof ls.key !== 'function' || typeof ls.setItem !== 'function') return;
+  try {
+    for (var i = 0; i < ls.length; i++) {
+      var k = ls.key(i);
+      if (!k || k.indexOf(NS + ':packs:') !== 0) continue;
+      var parsed = JSON.parse(ls.getItem(k));
+      if (!Array.isArray(parsed)) continue;
+      var cleaned = present(parsed);
+      if (dirty(parsed, cleaned)) ls.setItem(k, JSON.stringify(cleaned));
+    }
+  } catch (e2) { /* leave an unreadable row alone */ }
+}
+
+function loadMerged() {
+  return entries().then(function (rows) {
+    var primary = [];
+    var legacy = [];
+    var jobs = [];
+    rows.forEach(function (row) {
+      var key = row.key;
+      var list = row.value;
+      if (typeof key !== 'string' || !Array.isArray(list)) return;
+      if (key === HANDS_KEY) {
+        primary = present(list);
+        if (useIDB && dirty(list, primary)) jobs.push(set(HANDS_KEY, primary));
+      } else if (key.indexOf('packs:') === 0) {
+        var cleaned = present(list);
+        legacy = legacy.concat(cleaned);
+        if (useIDB && dirty(list, cleaned)) jobs.push(set(key, cleaned));
       }
-      return api('/api/packs', { method: 'POST', body: payload, token: token })
-        .then(function (d) { return mapPack(d.pack); });
-    }
-
-    return get('packs:' + user).then(function (list) {
-      list = list || [];
-      var i = -1;
-      for (var k = 0; k < list.length; k++) if (list[k].id === pack.id) i = k;
-      if (i >= 0) list[i] = pack; else list.push(pack);
-      return set('packs:' + user, list).then(function () { return pack; });
     });
-  }
-
-  function deletePack(user, id) {
-    if (MODE === 'remote') {
-      return api('/api/packs/' + encodeURIComponent(id), { method: 'DELETE', token: getToken() })
-        .then(function () { return api('/api/packs?include=data', { token: getToken() }); })
-        .then(function (d) { return d.packs.map(mapPack); });
-    }
-
-    return get('packs:' + user).then(function (list) {
-      var out = (list || []).filter(function (p) { return p.id !== id; });
-      return set('packs:' + user, out).then(function () { return out; });
+    scrubLocalPhotos();
+    return Promise.all(jobs).then(function () {
+      var merged = mergeById(primary, legacy.concat(present(lsLegacyHands())));
+      if (!useIDB) {
+        if (!memoryReady) {
+          memory[HANDS_KEY] = merged;
+          memoryReady = true;
+        }
+        return (memory[HANDS_KEY] || []).slice();
+      }
+      return merged;
     });
-  }
+  });
+}
 
-  const Store = {
-    ready: ready,
-    mode: function () { return MODE; },
-    get: get, set: set, del: del,
-    signup: signup, login: login, currentUser: currentUser, logout: logout,
-    packs: packs, savePack: savePack, deletePack: deletePack,
-    usingIDB: function () { return useIDB; }
-  };
+function hands() {
+  return loadMerged().then(present);
+}
+
+function saveHand(hand) {
+  var clean = stripImages(hand || {});
+  if (!clean.id) clean.id = 'hand_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  return loadMerged().then(function (list) {
+    var next = list.filter(function (p) { return p && p.id !== clean.id; });
+    next.push(clean);
+    if (!useIDB) {
+      memory[HANDS_KEY] = present(next);
+      memoryReady = true;
+      return clean;
+    }
+    return set(HANDS_KEY, present(next)).then(function (ok) {
+      if (!ok) {
+        var err = new Error("Hands can't be saved in this browser.");
+        err.code = 'no-idb';
+        throw err;
+      }
+      return clean;
+    });
+  });
+}
+
+function deleteHand(id) {
+  return entries().then(function (rows) {
+    var jobs = [];
+    if (!useIDB) {
+      memory[HANDS_KEY] = (memory[HANDS_KEY] || []).filter(function (p) { return p && p.id !== id; });
+      memoryReady = true;
+      return present(memory[HANDS_KEY]);
+    }
+    var sawHands = false;
+    rows.forEach(function (row) {
+      if (row.key === HANDS_KEY && Array.isArray(row.value)) {
+        sawHands = true;
+        jobs.push(set(HANDS_KEY, row.value.filter(function (p) { return p && p.id !== id; })));
+      } else if (typeof row.key === 'string' && row.key.indexOf('packs:') === 0 && Array.isArray(row.value)) {
+        var kept = row.value.filter(function (p) { return p && p.id !== id; });
+        if (kept.length !== row.value.length) jobs.push(set(row.key, kept));
+      }
+    });
+    if (!sawHands) jobs.push(set(HANDS_KEY, []));
+    return Promise.all(jobs).then(hands);
+  });
+}
+
+const Store = {
+  ready: localReady,
+  persistent: function () { return useIDB; },
+  usingIDB: function () { return useIDB; },
+  get: get,
+  hands: hands,
+  saveHand: saveHand,
+  deleteHand: deleteHand
+};
 
 export { Store };
 export default Store;
