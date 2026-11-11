@@ -1,12 +1,19 @@
 /* imaging.js — pure-JS analysis of a scanned handwriting page.
    Extracts: paper colour, ink palette (pen / marker), slant, stroke width,
-   line spacing, x-height, coverage and a thumbnail. No dependencies. */
+   line spacing, pens, heading treatment and style stats. No dependencies. */
 'use strict';
+import { measurePage } from './pageanalysis.js';
+
 function canvas(w, h) {
-    var c = document.createElement('canvas');
-    c.width = Math.max(1, Math.round(w));
-    c.height = Math.max(1, Math.round(h));
-    return c;
+    w = Math.max(1, Math.round(w));
+    h = Math.max(1, Math.round(h));
+    if (typeof document !== 'undefined' && document.createElement) {
+      var c = document.createElement('canvas');
+      c.width = w;
+      c.height = h;
+      return c;
+    }
+    return new OffscreenCanvas(w, h);
   }
 
   function loadImageFile(file) {
@@ -94,7 +101,42 @@ function canvas(w, h) {
     return ink;
   }
 
+  function centroidAt(ink, w, h, x, y, rad) {
+    if (y < 0 || y >= h) return null;
+    var s = 0, c = 0, dx, xx;
+    for (dx = -rad; dx <= rad; dx++) {
+      xx = x + dx;
+      if (xx < 0 || xx >= w) continue;
+      if (ink[y * w + xx]) { s += xx; c++; }
+    }
+    if (c < 2) return null;
+    return s / c;
+  }
+
   function estimateSlant(ink, w, h) {
+    var samples = [], y, x, up, dn, rad = 8, dy = 6;
+    for (y = dy; y < h - dy; y += 3) {
+      for (x = rad; x < w - rad; x += 3) {
+        if (!ink[y * w + x]) continue;
+        up = centroidAt(ink, w, h, x, y - dy, rad);
+        dn = centroidAt(ink, w, h, x, y + dy, rad);
+        if (up == null || dn == null) continue;
+        samples.push((up - dn) / (2 * dy));
+      }
+    }
+    if (samples.length >= 40) {
+      samples.sort(function (a, b) { return a - b; });
+      var mid = samples[(samples.length * 0.5) | 0];
+      var kept = [];
+      for (var si = 0; si < samples.length; si++) {
+        if (Math.abs(samples[si] - mid) < 0.25) kept.push(samples[si]);
+      }
+      if (kept.length >= 40) {
+        kept.sort(function (a, b) { return a - b; });
+        return kept[(kept.length * 0.5) | 0];
+      }
+      return mid;
+    }
     var xs = [], ys = [];
     for (var y = 0; y < h; y += 2) {
       for (var x = 0; x < w; x += 2) {
@@ -246,51 +288,54 @@ function canvas(w, h) {
     return rgbToHex(r / n, g / n, b / n);
   }
 
+  function longPeaks(energy, n, minLen, minGap) {
+    var i, peaks = [], gaps = [], med, keep = 0, g;
+    for (i = 1; i < n - 1; i++) {
+      if (energy[i] >= minLen && energy[i] >= energy[i - 1] && energy[i] >= energy[i + 1]) {
+        if (!peaks.length || i - peaks[peaks.length - 1] > minGap) peaks.push(i);
+      }
+    }
+    if (peaks.length < 8) return peaks.length;
+    for (i = 1; i < peaks.length; i++) gaps.push(peaks[i] - peaks[i - 1]);
+    gaps.sort(function (a, b) { return a - b; });
+    med = gaps[(gaps.length * 0.5) | 0];
+    if (!med) return 0;
+    for (i = 0; i < gaps.length; i++) {
+      g = gaps[i];
+      if (Math.abs(g - med) <= med * 0.4) keep++;
+    }
+    if (keep < gaps.length * 0.65) return 0;
+    return peaks.length;
+  }
+
   /* Guess printed paper style from residual light structure after ink mask. */
   function guessPaperStyle(data, ink, w, h) {
     var rowPeaks = 0, colPeaks = 0;
     var y, x, s, prev, mx;
     var rowE = new Float32Array(h);
-    mx = 0;
     for (y = 0; y < h; y++) {
-      s = 0;
-      for (x = 0; x < w; x += 2) {
+      var run = 0, best = 0;
+      for (x = 0; x < w; x++) {
         var i = (y * w + x) * 4;
         var lum = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-        /* Light structure that is NOT ink (rules / grid). */
-        if (!ink[y * w + x] && lum < 210 && lum > 140) s++;
+        if (!ink[y * w + x] && lum < 210 && lum > 140) { run++; if (run > best) best = run; }
+        else run = 0;
       }
-      rowE[y] = s;
-      if (s > mx) mx = s;
+      rowE[y] = best;
     }
-    if (mx > 0) {
-      prev = 0;
-      for (y = 1; y < h - 1; y++) {
-        if (rowE[y] > mx * 0.45 && rowE[y] >= rowE[y - 1] && rowE[y] >= rowE[y + 1]) {
-          if (y - prev > 12) { rowPeaks++; prev = y; }
-        }
-      }
-    }
+    rowPeaks = longPeaks(rowE, h, w * 0.45, 12);
     var colE = new Float32Array(w);
-    mx = 0;
     for (x = 0; x < w; x++) {
-      s = 0;
-      for (y = 0; y < h; y += 2) {
+      run = 0; best = 0;
+      for (y = 0; y < h; y++) {
         var ci = (y * w + x) * 4;
         var clum = 0.299 * data[ci] + 0.587 * data[ci + 1] + 0.114 * data[ci + 2];
-        if (!ink[y * w + x] && clum < 210 && clum > 140) s++;
+        if (!ink[y * w + x] && clum < 210 && clum > 140) { run++; if (run > best) best = run; }
+        else run = 0;
       }
-      colE[x] = s;
-      if (s > mx) mx = s;
+      colE[x] = best;
     }
-    if (mx > 0) {
-      prev = 0;
-      for (x = 1; x < w - 1; x++) {
-        if (colE[x] > mx * 0.45 && colE[x] >= colE[x - 1] && colE[x] >= colE[x + 1]) {
-          if (x - prev > 12) { colPeaks++; prev = x; }
-        }
-      }
-    }
+    colPeaks = longPeaks(colE, w, h * 0.45, 12);
     if (rowPeaks >= 8 && colPeaks >= 8) return 'grid';
     if (rowPeaks >= 8) return 'ruled';
     return 'plain';
@@ -336,7 +381,202 @@ function canvas(w, h) {
     return Math.max(0.2, Math.min(1, (1 - Math.min(1, cv)) * near));
   }
 
+  function paperLikePixel(r, g, b) {
+    var lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    var sat = (Math.max(r, g, b) - Math.min(r, g, b)) / 255;
+    return lum > 176 && sat < 0.22;
+  }
+
+  function fitLine(pts) {
+    var n = pts.length;
+    if (n < 4) return null;
+    var sa = 0, sb = 0, sab = 0, saa = 0, i, a, b;
+    for (i = 0; i < n; i++) {
+      a = pts[i][0]; b = pts[i][1];
+      sa += a; sb += b; sab += a * b; saa += a * a;
+    }
+    var den = n * saa - sa * sa;
+    if (Math.abs(den) < 1e-6) return null;
+    return { m: (n * sab - sa * sb) / den, k: (sb - ((n * sab - sa * sb) / den) * sa) / n };
+  }
+
+  function solve8(A, b) {
+    var n = 8;
+    var M = A.map(function (row, i) { return row.concat([b[i]]); });
+    var col, r, piv, c, tmp, div, f;
+    for (col = 0; col < n; col++) {
+      piv = col;
+      for (r = col + 1; r < n; r++) {
+        if (Math.abs(M[r][col]) > Math.abs(M[piv][col])) piv = r;
+      }
+      if (Math.abs(M[piv][col]) < 1e-8) throw new Error('Could not straighten the page.');
+      tmp = M[col]; M[col] = M[piv]; M[piv] = tmp;
+      div = M[col][col];
+      for (c = col; c <= n; c++) M[col][c] /= div;
+      for (r = 0; r < n; r++) {
+        if (r === col) continue;
+        f = M[r][col];
+        if (!f) continue;
+        for (c = col; c <= n; c++) M[r][c] -= f * M[col][c];
+      }
+    }
+    return M.map(function (row) { return row[n]; });
+  }
+
+  function homography(src, dst) {
+    var A = [], b = [], i, x, y, u, v;
+    for (i = 0; i < 4; i++) {
+      x = src[i].x; y = src[i].y; u = dst[i].x; v = dst[i].y;
+      A.push([x, y, 1, 0, 0, 0, -u * x, -u * y]);
+      b.push(u);
+      A.push([0, 0, 0, x, y, 1, -v * x, -v * y]);
+      b.push(v);
+    }
+    var h = solve8(A, b);
+    h.push(1);
+    return h;
+  }
+
+  function applyH(H, x, y) {
+    var w = H[6] * x + H[7] * y + H[8];
+    if (!w) return null;
+    return { x: (H[0] * x + H[1] * y + H[2]) / w, y: (H[3] * x + H[4] * y + H[5]) / w };
+  }
+
+  function sampleBilinear(data, w, h, x, y) {
+    if (x < 0 || y < 0 || x >= w - 1 || y >= h - 1) return null;
+    var x0 = x | 0, y0 = y | 0, fx = x - x0, fy = y - y0;
+    var w1 = w * 4;
+    var i00 = y0 * w1 + x0 * 4, i10 = i00 + 4, i01 = i00 + w1, i11 = i01 + 4;
+    var rx = 1 - fx, ry = 1 - fy, out = [0, 0, 0], k;
+    for (k = 0; k < 3; k++) {
+      out[k] = data[i00 + k] * rx * ry + data[i10 + k] * fx * ry + data[i01 + k] * rx * fy + data[i11 + k] * fx * fy;
+    }
+    return out;
+  }
+
+  function warpQuad(src, corners, dw, dh) {
+    var dst = [{ x: 0, y: 0 }, { x: dw - 1, y: 0 }, { x: dw - 1, y: dh - 1 }, { x: 0, y: dh - 1 }];
+    var Hinv;
+    try { Hinv = homography(dst, corners); }
+    catch (e) { return null; }
+    var out = canvas(dw, dh);
+    var simg = src.getContext('2d').getImageData(0, 0, src.width, src.height);
+    var dimg = out.getContext('2d').createImageData(dw, dh);
+    var sd = simg.data, dd = dimg.data, y, x, p, rgb, o;
+    for (y = 0; y < dh; y++) {
+      for (x = 0; x < dw; x++) {
+        o = (y * dw + x) * 4;
+        p = applyH(Hinv, x + 0.5, y + 0.5);
+        rgb = p ? sampleBilinear(sd, src.width, src.height, p.x, p.y) : null;
+        if (!rgb) { dd[o] = 255; dd[o + 1] = 255; dd[o + 2] = 255; dd[o + 3] = 255; }
+        else { dd[o] = rgb[0]; dd[o + 1] = rgb[1]; dd[o + 2] = rgb[2]; dd[o + 3] = 255; }
+      }
+    }
+    out.getContext('2d').putImageData(dimg, 0, 0);
+    return out;
+  }
+
+  /* Crop a page that sits on a darker desk, and unwarp it when the edges tilt. */
+  function straightenPage(src) {
+    if (!src || !src.width || !src.height) return null;
+    var maxDim = 900;
+    var scale = Math.min(1, maxDim / Math.max(src.width, src.height));
+    var c = canvas(src.width * scale, src.height * scale);
+    var ctx = c.getContext('2d');
+    ctx.drawImage(src, 0, 0, c.width, c.height);
+    var w = c.width, h = c.height;
+    var data = ctx.getImageData(0, 0, w, h).data;
+    var mask = new Uint8Array(w * h);
+    var nPaper = 0, i, p, x, y;
+    for (i = 0, p = 0; i < data.length; i += 4, p++) {
+      if (paperLikePixel(data[i], data[i + 1], data[i + 2])) { mask[p] = 1; nPaper++; }
+    }
+    if (nPaper < w * h * 0.25) return null;
+    var minX = w, minY = h, maxX = 0, maxY = 0;
+    for (y = 0; y < h; y++) {
+      for (x = 0; x < w; x++) {
+        if (!mask[y * w + x]) continue;
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+      }
+    }
+    var bw = maxX - minX, bh = maxY - minY;
+    if (bw < w * 0.45 || bh < h * 0.45) return null;
+    var inset = minX > w * 0.03 && minY > h * 0.03 && (w - maxX) > w * 0.03 && (h - maxY) > h * 0.03;
+    if (!inset || (1 - (bw * bh) / (w * h)) < 0.08) return null;
+    var inLum = 0, inN = 0, outLum = 0, outN = 0, lum;
+    for (y = 0; y < h; y += 3) {
+      for (x = 0; x < w; x += 3) {
+        i = (y * w + x) * 4;
+        lum = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        if (x >= minX && x <= maxX && y >= minY && y <= maxY) { inLum += lum; inN++; }
+        else { outLum += lum; outN++; }
+      }
+    }
+    if (!outN || !inN || outLum / outN > inLum / inN - 35) return null;
+
+    var left = [], right = [], top = [], bot = [];
+    for (y = minY; y <= maxY; y += 4) {
+      var xL = -1, xR = -1;
+      for (x = minX; x <= maxX; x++) if (mask[y * w + x]) { xL = x; break; }
+      for (x = maxX; x >= minX; x--) if (mask[y * w + x]) { xR = x; break; }
+      if (xL >= 0) left.push([y, xL]);
+      if (xR >= 0) right.push([y, xR]);
+    }
+    for (x = minX; x <= maxX; x += 4) {
+      var yT = -1, yB = -1;
+      for (y = minY; y <= maxY; y++) if (mask[y * w + x]) { yT = y; break; }
+      for (y = maxY; y >= minY; y--) if (mask[y * w + x]) { yB = y; break; }
+      if (yT >= 0) top.push([x, yT]);
+      if (yB >= 0) bot.push([x, yB]);
+    }
+    function edgeCorner(vert, horiz) {
+      if (!vert || !horiz) return null;
+      var den = 1 - vert.m * horiz.m;
+      if (Math.abs(den) < 1e-4) return null;
+      var cx = (vert.m * horiz.k + vert.k) / den;
+      return { x: cx, y: horiz.m * cx + horiz.k };
+    }
+    var tl = edgeCorner(fitLine(left), fitLine(top));
+    var tr = edgeCorner(fitLine(right), fitLine(top));
+    var br = edgeCorner(fitLine(right), fitLine(bot));
+    var bl = edgeCorner(fitLine(left), fitLine(bot));
+    function dist(a, b) {
+      if (!a || !b) return 0;
+      var dx = a.x - b.x, dy = a.y - b.y;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+    var tilted = tl && tr && br && bl && (
+      Math.abs(tl.x - bl.x) > w * 0.02 || Math.abs(tr.x - br.x) > w * 0.02 ||
+      Math.abs(tl.y - tr.y) > h * 0.02 || Math.abs(bl.y - br.y) > h * 0.02
+    );
+    if (tilted) {
+      var cx = (tl.x + tr.x + br.x + bl.x) / 4;
+      var cy = (tl.y + tr.y + br.y + bl.y) / 4;
+      function pullIn(p) {
+        var dx = cx - p.x, dy = cy - p.y;
+        var len = Math.sqrt(dx * dx + dy * dy) || 1;
+        var step = Math.min(8, len * 0.5);
+        return { x: p.x + dx / len * step, y: p.y + dy / len * step };
+      }
+      var quad = [pullIn(tl), pullIn(tr), pullIn(br), pullIn(bl)];
+      var dw = Math.max(32, Math.round((dist(quad[0], quad[1]) + dist(quad[3], quad[2])) / 2));
+      var dh = Math.max(32, Math.round((dist(quad[0], quad[3]) + dist(quad[1], quad[2])) / 2));
+      var warped = warpQuad(c, quad, dw, dh);
+      if (warped) return warped;
+    }
+    var cropped = canvas(bw, bh);
+    cropped.getContext('2d').drawImage(c, minX, minY, bw, bh, 0, 0, bw, bh);
+    return cropped;
+  }
+
   function analyze(srcCanvas) {
+    var page = straightenPage(srcCanvas);
+    var pageCorrected = !!page;
+    if (page) srcCanvas = page;
     var g = toGrayscale(srcCanvas, 1400);
     /* Slightly higher cap helps blue/green pens on cream paper under phone JPEG. */
     var th = Math.min(otsu(g.hist), 182);
@@ -366,6 +606,11 @@ function canvas(w, h) {
 
     var thumb = canvas(420, 420 * g.h / g.w);
     thumb.getContext('2d').drawImage(g.canvas, 0, 0, thumb.width, thumb.height);
+    var thumbUrl = '';
+    try {
+      if (typeof thumb.toDataURL === 'function') thumbUrl = thumb.toDataURL('image/jpeg', 0.6);
+    } catch (eThumb) { thumbUrl = ''; }
+    var measured = measurePage(g.data, ink, g.w, g.h, +slant.toFixed(3));
 
     return {
       width: srcCanvas.width,
@@ -381,7 +626,12 @@ function canvas(w, h) {
       paperStyle: patterns.paperStyle,
       palette: palette,
       patterns: patterns,
-      thumb: thumb.toDataURL('image/jpeg', 0.6)
+      pens: measured.pens,
+      lines: measured.lines,
+      heading: measured.heading,
+      style: measured.style,
+      pageCorrected: pageCorrected,
+      thumb: thumbUrl
     };
   }
 
@@ -460,6 +710,55 @@ function canvas(w, h) {
       return styleVotes[b] - styleVotes[a];
     })[0] || 'ruled';
     var neatness = neatVals.length ? +median(neatVals.slice()).toFixed(3) : (confs.length ? +median(confs.slice()).toFixed(3) : 0.5);
+    var penMap = {};
+    list.forEach(function (a) {
+      (a.pens || []).forEach(function (p) {
+        var e = penMap[p.hex] || (penMap[p.hex] = { hex: p.hex, kind: p.kind, role: p.role, width: 0, share: 0, n: 0 });
+        e.width += p.width || 0;
+        e.share += p.share || 0;
+        e.n++;
+        if (p.role === 'heading') e.role = 'heading';
+        if (p.kind && p.kind !== 'pen') e.kind = p.kind;
+      });
+    });
+    var pens = Object.keys(penMap).map(function (k) {
+      var e = penMap[k];
+      return {
+        hex: e.hex, kind: e.kind, role: e.role,
+        width: +(e.width / e.n).toFixed(1),
+        share: Math.round(e.share / e.n)
+      };
+    });
+    function medKey(key) {
+      var xs = [];
+      list.forEach(function (a) {
+        if (a.style && typeof a.style[key] === 'number') xs.push(a.style[key]);
+      });
+      return xs.length ? +median(xs.slice()).toFixed(3) : 0;
+    }
+    var heads = [];
+    list.forEach(function (a) { if (a.heading && a.heading.pen) heads.push(a.heading); });
+    var heading = null;
+    if (heads.length) {
+      heading = {
+        pen: heads[0].pen,
+        scale: +median(heads.map(function (h) { return h.scale || 1; }).slice()).toFixed(2),
+        underline: heads.some(function (h) { return !!h.underline; }),
+        case: heads[0].case || 'mixed'
+      };
+    }
+    var style = {
+      slant: +median(slants.slice()).toFixed(3),
+      xHeight: medKey('xHeight'),
+      letterGap: medKey('letterGap'),
+      wordGap: medKey('wordGap'),
+      lineSpacing: medKey('lineSpacing'),
+      baselineWobble: medKey('baselineWobble'),
+      letterGapEm: medKey('letterGapEm'),
+      wordGapEm: medKey('wordGapEm'),
+      lineSpacingEm: medKey('lineSpacingEm'),
+      baselineWobbleEm: medKey('baselineWobbleEm')
+    };
     return {
       pages: list.length,
       slant: +median(slants.slice()).toFixed(3),
@@ -476,7 +775,10 @@ function canvas(w, h) {
         paperStyle: paperStyle,
         qualityGuess: neatness >= 0.72 ? 'best' : 'normal'
       },
-      thumbs: list.map(function (a) { return a.thumb; })
+      pens: pens,
+      heading: heading,
+      style: style,
+      thumbs: list.map(function (a) { return a.thumb; }).filter(Boolean)
     };
   }
 
@@ -493,5 +795,5 @@ function canvas(w, h) {
     guessPaperStyle: guessPaperStyle
   };
 
-export { Imaging };
+export { Imaging, analyze, mergeAnalyses };
 export default Imaging;
