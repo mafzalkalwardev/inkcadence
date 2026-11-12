@@ -74,6 +74,12 @@ function stripPhotos(pack) {
     } else {
       data.style = null;
     }
+    data.examples = Array.isArray(data.examples) ? data.examples.filter(function (ex) {
+      return ex && isChar(ex.ch) && Array.isArray(ex.embedding) && ex.embedding.length > 8 && ex.embedding.length <= 1024
+        && ex.embedding.every(function (n) { return typeof n === 'number' && isFinite(n); });
+    }).slice(0, 400).map(function (ex) {
+      return { ch: ex.ch, embedding: ex.embedding.slice(0, 1024) };
+    }) : [];
     data.missing = Array.isArray(data.missing) ? data.missing.filter(isChar) : [];
     data.glyphs = Array.isArray(data.glyphs)
       ? data.glyphs.filter(function (g) {

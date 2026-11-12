@@ -182,7 +182,9 @@ var FREQ = 'etaoinshrdlcumwfgypbvkjxqzETAOINSHRDLCUMWFGYPBVKJXQZ0123456789';
       cellH: Math.round(gh * 1.15),
       cellW: Math.round(gw * 1.2),
       harvested: true,
-      confidence: conf
+      confidence: conf,
+      x: box.minX,
+      y: box.minY
     };
   }
 
@@ -209,13 +211,12 @@ var FREQ = 'etaoinshrdlcumwfgypbvkjxqzETAOINSHRDLCUMWFGYPBVKJXQZ0123456789';
     return [];
   }
 
-  function assignLabelsAsync(crops, maxPerChar) {
-    maxPerChar = maxPerChar || 4;
+  function assignLabelsAsync(crops, maxPerChar, examples) {
     var cnn = CharCNN;
     if (!cnn) return Promise.resolve([]);
     var ensure = cnn.isReady() ? Promise.resolve() : cnn.load();
     return ensure.then(function () {
-      return cnn.labelCrops(crops, maxPerChar);
+      return cnn.labelCrops(crops, maxPerChar, examples);
     }).catch(function (err) {
       console.warn('[Harvest] CharCNN label failed:', err && err.message ? err.message : err);
       return [];
@@ -233,20 +234,33 @@ var FREQ = 'etaoinshrdlcumwfgypbvkjxqzETAOINSHRDLCUMWFGYPBVKJXQZ0123456789';
     };
   }
 
+  function singleLetter(box, xHeight) {
+    var xh = xHeight || box.h;
+    if (box.h < xh * 0.45) return false;
+    if (box.w / box.h > 1.45) return false;
+    if (box.w > xh * 1.7) return false;
+    return true;
+  }
+
   function collectCrops(canvases, opts) {
     opts = opts || {};
-    var maxCrops = opts.maxCrops || 120;
     var all = [];
-    (canvases || []).forEach(function (src) {
+    (canvases || []).forEach(function (src, page) {
       if (!src) return;
-      var info = inkMask(src, opts.maxW || 900);
-      var comps = components(info.mask, info.w, info.h).slice(0, 90);
+      var info = inkMask(src, opts.maxW || 1100);
+      var comps = components(info.mask, info.w, info.h);
+      var heights = comps.map(function (b) { return b.h; }).sort(function (a, b) { return a - b; });
+      var xHeight = opts.xHeight || (heights.length ? heights[(heights.length * 0.5) | 0] : 0);
       comps.forEach(function (box) {
-        all.push(cropToGlyph(info, box));
+        if (!singleLetter(box, xHeight)) return;
+        var glyph = cropToGlyph(info, box);
+        glyph.page = page;
+        all.push(glyph);
       });
     });
     all.sort(function (a, b) { return (b.confidence || 0) - (a.confidence || 0); });
-    return all.slice(0, maxCrops);
+    if (opts.maxCrops > 0) return all.slice(0, opts.maxCrops);
+    return all;
   }
 
   /* Sync harvest — CNN not available here; pass allowFreqFallback only for legacy tests. */
@@ -260,26 +274,153 @@ var FREQ = 'etaoinshrdlcumwfgypbvkjxqzETAOINSHRDLCUMWFGYPBVKJXQZ0123456789';
   function harvestFromPagesAsync(canvases, opts) {
     opts = opts || {};
     var all = collectCrops(canvases, opts);
-    return assignLabelsAsync(all, opts.maxPerChar || 4).then(function (labeled) {
+    return assignLabelsAsync(all, opts.maxPerChar, opts.examples).then(function (labeled) {
       if (labeled.length) return labeled;
       if (opts.allowFreqFallback) return assignLabelsFreq(all, opts.maxPerChar || 4);
       return labeled;
     });
   }
 
-  function mergeVariants(baseGlyphs, harvested) {
-    var out = (baseGlyphs || []).slice();
-    var by = Object.create(null);
-    out.forEach(function (g) {
-      by[g.ch] = (by[g.ch] || 0) + 1;
-    });
-    (harvested || []).forEach(function (g) {
+  function glyphQuality(g) {
+    var q = g.confidence || g.cnnConf || 0;
+    if (g.source === 'sheet' || g.confirmed) q += 2;
+    return q;
+  }
+
+  function mergeVariants(baseGlyphs, harvested, maxPerChar) {
+    maxPerChar = maxPerChar || 6;
+    var groups = Object.create(null);
+    function add(g) {
       if (!g || !g.ch) return;
-      if ((by[g.ch] || 0) >= 4) return;
-      out.push(g);
-      by[g.ch] = (by[g.ch] || 0) + 1;
+      var copy = Object.assign({}, g);
+      delete copy.embedding;
+      (groups[copy.ch] || (groups[copy.ch] = [])).push(copy);
+    }
+    (baseGlyphs || []).forEach(add);
+    (harvested || []).forEach(add);
+    var out = [];
+    Object.keys(groups).forEach(function (ch) {
+      var list = groups[ch];
+      list.sort(function (a, b) { return glyphQuality(b) - glyphQuality(a); });
+      var previous = 0;
+      (baseGlyphs || []).forEach(function (g) { if (g && g.ch === ch) previous++; });
+      var limit = Math.max(maxPerChar, previous);
+      var i;
+      for (i = 0; i < list.length && i < limit; i++) out.push(list[i]);
     });
     return out;
+  }
+
+  function examplesFromGlyphs(glyphs) {
+    var list = (glyphs || []).filter(function (g) {
+      return g && g.ch && g.url && (g.source === 'sheet' || g.confirmed);
+    });
+    if (!list.length || !CharCNN || !CharCNN.isReady()) return Promise.resolve([]);
+    var out = [];
+    var counts = Object.create(null);
+    var chain = Promise.resolve();
+    list.forEach(function (g) {
+      chain = chain.then(function () {
+        if ((counts[g.ch] || 0) >= 4) return;
+        return CharCNN.predictDataUrl(g.url).then(function (pred) {
+          if (!pred || !pred.embedding) return;
+          counts[g.ch] = (counts[g.ch] || 0) + 1;
+          out.push({ ch: g.ch, embedding: Array.prototype.slice.call(pred.embedding) });
+        }).catch(function () { /* skip a crop that will not load */ });
+      });
+    });
+    return chain.then(function () { return out; });
+  }
+
+  function confirmLetter(hand, glyph) {
+    if (!hand.examples) hand.examples = [];
+    if (glyph) glyph.confirmed = true;
+    if (glyph && glyph.ch && glyph.embedding) {
+      var emb = glyph.embedding;
+      if (typeof emb !== 'object' || typeof emb.length !== 'number') return hand;
+      hand.examples.push({
+        ch: glyph.ch,
+        embedding: Array.prototype.slice.call(emb)
+      });
+    }
+    return hand;
+  }
+
+  function handSummary(hand) {
+    var glyphs = (hand && hand.glyphs) || [];
+    var by = Object.create(null);
+    var conf = 0, nConf = 0, i, g;
+    for (i = 0; i < glyphs.length; i++) {
+      g = glyphs[i];
+      if (!g || !g.ch) continue;
+      by[g.ch] = (by[g.ch] || 0) + 1;
+      if (typeof g.cnnConf === 'number') { conf += g.cnnConf; nConf++; }
+      else if (typeof g.confidence === 'number') { conf += g.confidence; nConf++; }
+    }
+    var chars = Object.keys(by);
+    var totalVariants = 0;
+    chars.forEach(function (ch) { totalVariants += by[ch]; });
+    return {
+      coverage: Math.round((chars.length / 62) * 100),
+      variants: chars.length ? +(totalVariants / chars.length).toFixed(2) : 0,
+      confidence: nConf ? +(conf / nConf).toFixed(3) : 0
+    };
+  }
+
+  var STAT_KEYS = ['slant', 'strokeWidth', 'lineGap', 'inkRatio', 'strokeConfidence'];
+  var STYLE_KEYS = ['slant', 'xHeight', 'letterGap', 'wordGap', 'lineSpacing', 'baselineWobble',
+    'letterGapEm', 'wordGapEm', 'lineSpacingEm', 'baselineWobbleEm'];
+
+  function blendNum(a, b, n0, n1) {
+    if (typeof a !== 'number') return b;
+    if (typeof b !== 'number') return a;
+    return (a * n0 + b * n1) / (n0 + n1);
+  }
+
+  function blendStats(prev, next, n0, n1) {
+    if (!prev) return next || null;
+    if (!next) return prev;
+    var out = Object.assign({}, prev);
+    var i, k;
+    for (i = 0; i < STAT_KEYS.length; i++) {
+      k = STAT_KEYS[i];
+      if (typeof prev[k] === 'number' && typeof next[k] === 'number') {
+        out[k] = +blendNum(prev[k], next[k], n0, n1).toFixed(4);
+      }
+    }
+    out.style = Object.assign({}, prev.style || {});
+    for (i = 0; i < STYLE_KEYS.length; i++) {
+      k = STYLE_KEYS[i];
+      var av = prev.style && prev.style[k];
+      var bv = next.style && next.style[k];
+      if (typeof av === 'number' || typeof bv === 'number') {
+        out.style[k] = +blendNum(av, bv, n0, n1).toFixed(4);
+      }
+    }
+    out.pages = (prev.pages || n0) + (next.pages || n1);
+    delete out.thumbs;
+    return out;
+  }
+
+  function addToHand(hand, harvested, stats) {
+    var before = handSummary(hand);
+    hand.glyphs = mergeVariants(hand.glyphs, harvested, 6);
+    var n0 = hand.sampleCount || (hand.stats && hand.stats.pages) || 1;
+    var n1 = (stats && stats.pages) || 1;
+    if (stats) {
+      hand.stats = blendStats(hand.stats, stats, n0, n1);
+      if (hand.stats) delete hand.stats.thumbs;
+    }
+    hand.sampleCount = n0 + n1;
+    var after = handSummary(hand);
+    return {
+      coverageBefore: before.coverage,
+      coverageAfter: after.coverage,
+      variantsBefore: before.variants,
+      variantsAfter: after.variants,
+      confidenceBefore: before.confidence,
+      confidenceAfter: after.confidence
+    };
   }
 
   const Harvest = {
@@ -287,6 +428,10 @@ var FREQ = 'etaoinshrdlcumwfgypbvkjxqzETAOINSHRDLCUMWFGYPBVKJXQZ0123456789';
     harvestFromPagesAsync: harvestFromPagesAsync,
     mergeVariants: mergeVariants,
     medianCellMetrics: medianCellMetrics,
+    collectCrops: collectCrops,
+    examplesFromGlyphs: examplesFromGlyphs,
+    confirmLetter: confirmLetter,
+    addToHand: addToHand,
     inkMask: inkMask,
     components: components,
     assignLabelsAsync: assignLabelsAsync,

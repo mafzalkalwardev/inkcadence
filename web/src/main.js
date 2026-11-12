@@ -108,6 +108,8 @@ async function renderApp() {
       </div>
       <div class="sidebar-actions">
         <button class="btn-new" id="btnNewPack">＋ New hand</button>
+        <button class="btn-ghost" id="btnAddPages" type="button">Add pages</button>
+        <input id="fileAddPages" type="file" accept="image/*" multiple hidden>
         ${themeToggleHtml('btn-ghost')}
       </div>
     </aside>
@@ -440,7 +442,7 @@ async function buildDraftPack() {
     if (typeof CharCNN !== 'undefined' && CharCNN.load && !CharCNN.isReady()) {
       try { await CharCNN.load(['/charcnn.json', 'charcnn.json']); } catch (_) { /* empty harvest */ }
     }
-    harvested = await Harvest.harvestFromPagesAsync(S.refImages, { maxCrops: 120, maxPerChar: 4 });
+    harvested = await Harvest.harvestFromPagesAsync(S.refImages, { examples: [] });
     glyphs = Harvest.mergeVariants(glyphs, harvested);
     if (!hadSheetGlyphs && harvested.length) {
       const med = Harvest.medianCellMetrics ? Harvest.medianCellMetrics(harvested) : null;
@@ -495,6 +497,7 @@ async function buildDraftPack() {
     baseStyleName: base.name,
     styleScore: scored.score,
     renderMode: 'auto',
+    examples: await Harvest.examplesFromGlyphs(glyphs),
   };
   S.draftPack = pack;
   return pack;
@@ -554,6 +557,47 @@ function wireApp() {
     setWizard(1);
     document.querySelector('.tabs button[data-tab="train"]').click();
   };
+  const addPages = $('#btnAddPages');
+  const addPagesInput = $('#fileAddPages');
+  if (addPages && addPagesInput) {
+    addPages.onclick = () => {
+      if (!activePack()) {
+        card($('#buildMsg'), 'Save a hand first. Then add more of its pages here.');
+        return;
+      }
+      addPagesInput.click();
+    };
+    addPagesInput.onchange = async () => {
+      const files = [...(addPagesInput.files || [])].slice(0, 8);
+      addPagesInput.value = '';
+      const hand = activePack();
+      if (!hand || !files.length) return;
+      card($('#buildMsg'), 'Reading the new pages…');
+      try {
+        const cans = (await Promise.all(files.map((f) => Imaging.loadImageFile(f).catch(() => null)))).filter(Boolean);
+        if (!cans.length) {
+          card($('#buildMsg'), 'Those images could not be read.', 'bad');
+          return;
+        }
+        const analyses = await analyzeCanvases(cans);
+        const stats = Imaging.mergeAnalyses(analyses);
+        delete stats.thumbs;
+        if (CharCNN.load && !CharCNN.isReady()) {
+          try { await CharCNN.load(['/charcnn.json', 'charcnn.json']); } catch (_) { /* labels may be empty */ }
+        }
+        const harvested = await Harvest.harvestFromPagesAsync(cans, { examples: hand.examples || [] });
+        const report = Harvest.addToHand(hand, harvested, stats);
+        await Store.saveHand(hand);
+        await refreshPacks();
+        renderPackList();
+        renderPackSelect();
+        const pages = cans.length === 1 ? '1 page' : cans.length + ' pages';
+        card($('#buildMsg'), 'Added ' + pages + '. Coverage ' + report.coverageBefore + '% to ' + report.coverageAfter + '%. Variants per letter ' + report.variantsBefore + ' to ' + report.variantsAfter + '. Confidence ' + report.confidenceBefore + ' to ' + report.confidenceAfter + '.');
+      } catch (err) {
+        card($('#buildMsg'), 'Could not add those pages.', 'bad');
+      }
+    };
+  }
 
   $('#btnPickRef').onclick = () => $('#fileRef').click();
   $('#btnPickSheet').onclick = () => $('#fileSheet').click();

@@ -35,7 +35,7 @@
     "dev:web": "npm run dev --prefix web",
     "build": "npm run build --prefix web",
     "build:web": "npm run build --prefix web",
-    "test": "node test/frontend.test.js && node test/engine.test.js && node test/lettersheet.test.js && node test/pipeline.test.js && node test/realism.test.js && node test/assignments.test.js && node test/page-analysis.test.js",
+    "test": "node test/frontend.test.js && node test/engine.test.js && node test/lettersheet.test.js && node test/pipeline.test.js && node test/realism.test.js && node test/assignments.test.js && node test/page-analysis.test.js && node test/harvest.test.js",
     "test:pipeline": "node test/pipeline.test.js",
     "test:assignments": "node test/assignments.test.js",
     "fixtures:samples": "python scripts/make_sample_handwriting.py",

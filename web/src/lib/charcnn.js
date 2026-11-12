@@ -116,7 +116,13 @@ var WEIGHTS_URLS = [
     var h = dense(x.data, model.fc1, true);
     var logits = dense(h, model.fc2, false);
     var sm = softmaxArgmax(logits);
-    return { ch: model.labels[sm.index], conf: sm.conf, index: sm.index };
+    return {
+      ch: model.labels[sm.index],
+      conf: sm.conf,
+      index: sm.index,
+      probs: sm.probs,
+      embedding: h
+    };
   }
 
   function glyphToTensor(imgOrCanvas) {
@@ -252,53 +258,164 @@ var WEIGHTS_URLS = [
     return loadImage(url).then(predictImage);
   }
 
-  function labelCrops(crops, maxPerChar) {
-    maxPerChar = maxPerChar || 4;
+  var MIN_CONF = 0.65;
+
+  function medianHeight(crops) {
+    var hs = [];
+    var i;
+    for (i = 0; i < crops.length; i++) if (crops[i] && crops[i].h) hs.push(crops[i].h);
+    if (!hs.length) return 0;
+    hs.sort(function (a, b) { return a - b; });
+    return hs[(hs.length * 0.5) | 0];
+  }
+
+  function cosine(a, b) {
+    if (!a || !b) return 0;
+    var n = Math.min(a.length, b.length), i, dot = 0, na = 0, nb = 0;
+    for (i = 0; i < n; i++) {
+      dot += a[i] * b[i];
+      na += a[i] * a[i];
+      nb += b[i] * b[i];
+    }
+    if (na < 1e-8 || nb < 1e-8) return 0;
+    return dot / Math.sqrt(na * nb);
+  }
+
+  /* Lowercase body text was being read as capitals. A short crop whose
+     lowercase score is close to the capital score is that lowercase letter. */
+  function decideLabel(pred, crop, examples, medianH) {
+    var ch = pred.ch;
+    var conf = pred.conf;
+    var labels = model.labels;
+    var xh = medianH || crop.h || 1;
+    var body = crop.h && crop.h < xh * 1.18;
+    if (ch >= 'A' && ch <= 'Z' && pred.probs) {
+      var lower = ch.toLowerCase();
+      var ui = labels.indexOf(ch);
+      var li = labels.indexOf(lower);
+      if (body && li >= 0) {
+        ch = lower;
+        conf = Math.max(pred.probs[li] || 0, pred.conf * 0.55);
+      } else if (!body && li >= 0 && ui >= 0 && pred.probs[li] > pred.probs[ui] * 0.8) {
+        ch = lower;
+        conf = pred.probs[li];
+      }
+    }
+    if (body && ch >= '0' && ch <= '9' && conf < 0.96) conf = 0;
+    if (examples && examples.length && pred.embedding) {
+      var best = null, bestSim = -1, other = -1, i, sim;
+      for (i = 0; i < examples.length; i++) {
+        if (!examples[i] || !examples[i].embedding || !examples[i].ch) continue;
+        sim = cosine(pred.embedding, examples[i].embedding);
+        if (sim > bestSim) {
+          if (best && best.ch !== examples[i].ch) other = Math.max(other, bestSim);
+          bestSim = sim;
+          best = examples[i];
+        } else if (!best || examples[i].ch !== best.ch) {
+          other = Math.max(other, sim);
+        }
+      }
+      if (best && bestSim >= 0.90 && bestSim - Math.max(other, 0) >= 0.04) {
+        ch = best.ch;
+        conf = Math.max(conf, Math.min(0.95, 0.55 + bestSim * 0.4));
+      } else {
+        conf = 0;
+      }
+    }
+    if (body && ch >= 'A' && ch <= 'Z') ch = ch.toLowerCase();
+    return { ch: ch, conf: conf };
+  }
+
+  /* A lowercase p, g, y, q, or j hangs below the line. A capital does not.
+     The 28×28 net cannot see that, so a confirmed capital pulls its twin down.
+     Pages are separate: y starts over on each page. */
+  function applyLineCase(crops) {
+    if (!crops || crops.length < 2) return crops;
+    var byPage = Object.create(null);
+    crops.forEach(function (crop) {
+      var page = crop && crop.page != null ? crop.page : 0;
+      (byPage[page] || (byPage[page] = [])).push(crop);
+    });
+    Object.keys(byPage).forEach(function (page) {
+      applyLineCaseOnPage(byPage[page]);
+    });
+    return crops;
+  }
+
+  function applyLineCaseOnPage(crops) {
+    if (!crops || crops.length < 2) return;
+    var sorted = crops.slice().sort(function (a, b) { return (a.y || 0) - (b.y || 0); });
+    var heights = sorted.map(function (c) { return c.h || 10; }).sort(function (a, b) { return a - b; });
+    var medianH = heights[(heights.length * 0.5) | 0] || 12;
+    var lines = [];
+    sorted.forEach(function (crop) {
+      var last = lines[lines.length - 1];
+      var prev = last && last[last.length - 1];
+      if (!last || (crop.y || 0) - (prev.y || 0) > medianH * 0.55) lines.push([crop]);
+      else last.push(crop);
+    });
+    var desc = { P: 'p', G: 'g', Y: 'y', Q: 'q', J: 'j' };
+    lines.forEach(function (line) {
+      if (line.length < 2) return;
+      var bottoms = line.map(function (c) { return (c.y || 0) + (c.h || 0); }).sort(function (a, b) { return a - b; });
+      var baseline = bottoms[Math.max(0, (bottoms.length * 0.45) | 0)];
+      line.forEach(function (c) {
+        var bottom = (c.y || 0) + (c.h || 0);
+        if (desc[c.ch] && bottom > baseline + medianH * 0.18) c.ch = desc[c.ch];
+      });
+    });
+  }
+
+  function acceptCrop(crop, pred, counts, maxPerChar, examples, medianH) {
+    if (!pred) return null;
+    var decided = decideLabel(pred, crop, examples, medianH);
+    if (decided.conf < MIN_CONF) return null;
+    if (maxPerChar && (counts[decided.ch] || 0) >= maxPerChar) return null;
+    var g = Object.assign({}, crop);
+    g.ch = decided.ch;
+    g.cnnConf = decided.conf;
+    g.confidence = Math.min(0.99, 0.35 * (crop.confidence || 0.5) + 0.65 * decided.conf);
+    g.embedding = pred.embedding;
+    counts[decided.ch] = (counts[decided.ch] || 0) + 1;
+    return g;
+  }
+
+  function labelCrops(crops, maxPerChar, examples) {
     if (!isReady()) return Promise.resolve([]);
     var counts = Object.create(null);
     var out = [];
+    var medianH = medianHeight(crops);
     var chain = Promise.resolve();
     crops.forEach(function (crop) {
       chain = chain.then(function () {
+        if (!crop || !crop.url) return;
         return predictDataUrl(crop.url).then(function (pred) {
-          if (!pred || pred.conf < 0.18) return;
-          var ch = pred.ch;
-          if ((counts[ch] || 0) >= maxPerChar) return;
-          var g = Object.assign({}, crop);
-          g.ch = ch;
-          g.cnnConf = pred.conf;
-          g.confidence = Math.min(0.99, 0.35 * (crop.confidence || 0.5) + 0.65 * pred.conf);
-          out.push(g);
-          counts[ch] = (counts[ch] || 0) + 1;
+          var g = acceptCrop(crop, pred, counts, maxPerChar, examples, medianH);
+          if (g) out.push(g);
         }).catch(function () { /* skip */ });
       });
     });
     return chain.then(function () {
+      applyLineCase(out);
       out.sort(function (a, b) { return (b.confidence || 0) - (a.confidence || 0); });
       return out;
     });
   }
 
-  function labelCropsSync(crops, maxPerChar) {
-    maxPerChar = maxPerChar || 4;
+  function labelCropsSync(crops, maxPerChar, examples) {
     if (!isReady()) return [];
     var counts = Object.create(null);
     var out = [];
-    var i, crop, pred, ch, g;
+    var medianH = medianHeight(crops);
+    var i, crop, pred, g;
     for (i = 0; i < crops.length; i++) {
       crop = crops[i];
-      if (!crop._img && !crop._canvas) continue;
+      if (!crop || (!crop._img && !crop._canvas)) continue;
       pred = predictImage(crop._img || crop._canvas);
-      if (!pred || pred.conf < 0.18) continue;
-      ch = pred.ch;
-      if ((counts[ch] || 0) >= maxPerChar) continue;
-      g = Object.assign({}, crop);
-      g.ch = ch;
-      g.cnnConf = pred.conf;
-      g.confidence = Math.min(0.99, 0.35 * (crop.confidence || 0.5) + 0.65 * pred.conf);
-      out.push(g);
-      counts[ch] = (counts[ch] || 0) + 1;
+      g = acceptCrop(crop, pred, counts, maxPerChar, examples, medianH);
+      if (g) out.push(g);
     }
+    applyLineCase(out);
     return out;
   }
 
