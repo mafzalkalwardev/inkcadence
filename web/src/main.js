@@ -10,6 +10,7 @@ import { Harvest } from './lib/harvest.js';
 import { Assignment } from './lib/assignment.js';
 import { PackShare } from './lib/packshare.js';
 import { LetterSheet } from './lib/lettersheet.js';
+import { CopyLines } from './lib/copylines.js';
 import { packQuality, tryPhrase } from './lib/qa.js';
 
 CharCNN.load(['/charcnn.json', 'charcnn.json']).catch(function (err) {
@@ -165,6 +166,15 @@ function trainWizardHtml() {
           <div class="thumbs" id="thumbsSheet"></div>
           <p class="small muted" id="sheetSummary"></p>
         </div>
+      </div>
+      <div class="drop" style="margin-top:12px">
+        <h4>No printer?</h4>
+        <p class="small muted">Copy these lines onto any paper, then photograph the page. Each letter is read from its place in the line.</p>
+        <ol class="copy-lines">
+          ${CopyLines.LINES.map((line) => `<li>${esc(line)}</li>`).join('')}
+        </ol>
+        <input type="file" id="fileCopy" accept="image/*" hidden>
+        <button class="ghost tiny" id="btnPickCopy" type="button">Upload the copy</button>
       </div>
       <div class="row" style="margin-top:14px">
         <button class="ghost" id="wizBack2">Back</button>
@@ -348,8 +358,9 @@ function showSheetThumbs() {
   S.sheetReads.forEach((read) => {
     const note = document.createElement('p');
     note.className = 'small muted';
-    const label = read.kind === 'fill-in' ? 'Fill-in' : 'Page ' + (read.page + 1);
-    note.textContent = label + ': ' + read.glyphs.length + ' letters, ' + read.missing.length + ' empty boxes.';
+    const label = read.kind === 'fill-in' ? 'Fill-in' : (read.kind === 'copy' ? 'Copied lines' : 'Page ' + (read.page + 1));
+    const empty = read.kind === 'copy' ? ' not placed.' : ' empty boxes.';
+    note.textContent = label + ': ' + read.glyphs.length + ' letters, ' + read.missing.length + empty;
     host.appendChild(note);
   });
   $('#sheetWrap').hidden = false;
@@ -601,6 +612,24 @@ function wireApp() {
 
   $('#btnPickRef').onclick = () => $('#fileRef').click();
   $('#btnPickSheet').onclick = () => $('#fileSheet').click();
+  const pickCopy = $('#btnPickCopy');
+  const fileCopy = $('#fileCopy');
+  if (pickCopy && fileCopy) {
+    pickCopy.onclick = () => fileCopy.click();
+    fileCopy.onchange = () => {
+      const files = [...(fileCopy.files || [])].slice(0, 1);
+      fileCopy.value = '';
+      if (!files.length) return;
+      card($('#buildMsg'), 'Reading the copied lines…');
+      Imaging.loadImageFile(files[0]).then((canvas) => {
+        const read = CopyLines.read(canvas);
+        S.sheetReads = S.sheetReads.filter((r) => r.kind !== 'copy').concat(read);
+        S.sheetSrc = canvas;
+        showSheetThumbs();
+        card($('#buildMsg'), read.glyphs.length + ' letters read from the copy. ' + read.missing.length + ' characters could not be placed.');
+      }).catch((e) => card($('#buildMsg'), e.message || 'Those images could not be read.', 'bad'));
+    };
+  }
   $('#fileRef').onchange = () => {
     const files = [...($('#fileRef').files || [])].slice(0, 8);
     Promise.all(files.map((f) => Imaging.loadImageFile(f).catch(() => null))).then((cans) => {

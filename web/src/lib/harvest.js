@@ -252,7 +252,7 @@ var FREQ = 'etaoinshrdlcumwfgypbvkjxqzETAOINSHRDLCUMWFGYPBVKJXQZ0123456789';
       var heights = comps.map(function (b) { return b.h; }).sort(function (a, b) { return a - b; });
       var xHeight = opts.xHeight || (heights.length ? heights[(heights.length * 0.5) | 0] : 0);
       comps.forEach(function (box) {
-        if (!singleLetter(box, xHeight)) return;
+        if (!opts.keepWide && !singleLetter(box, xHeight)) return;
         var glyph = cropToGlyph(info, box);
         glyph.page = page;
         all.push(glyph);

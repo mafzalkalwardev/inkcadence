@@ -368,3 +368,12 @@ canvas.page {
   margin: 0 auto;
   padding: 40px 20px 80px;
 }
+
+.copy-lines {
+  margin: 8px 0 12px;
+  padding-left: 1.2em;
+}
+.copy-lines li {
+  margin: 4px 0;
+  font-family: ui-monospace, Consolas, monospace;
+}
