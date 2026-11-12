@@ -58,6 +58,33 @@ function drawPage(lines, skip) {
   return canvas;
 }
 
+/* The list is numbered, and a scribble sits above the five lines. */
+function drawNumbered(lines) {
+  const advance = 48;
+  const width = 220 + Math.max(...lines.map((line) => line.length)) * advance;
+  const canvas = createCanvas(width, 160 + lines.length * 110);
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#f6f1e6';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#241c16';
+  ctx.strokeStyle = '#241c16';
+  ctx.lineWidth = 2;
+  ctx.font = '44px CopyFont';
+  for (let s = 0; s < 4; s++) ctx.fillText('x', 40 + s * 36, 48);
+  lines.forEach((line, row) => {
+    const y = 140 + row * 110;
+    ctx.fillText(String(row + 1), 24, y);
+    ctx.fillText('.', 52, y);
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === ' ') continue;
+      ctx.strokeText(ch, 150 + i * advance, y);
+      ctx.fillText(ch, 150 + i * advance, y);
+    }
+  });
+  return canvas;
+}
+
 function lowercaseRecall(lines, glyphs, skip) {
   const got = glyphs.map((g) => g.ch).filter((ch) => /[a-z]/.test(ch));
   let gi = 0;
@@ -107,6 +134,14 @@ async function main() {
   check('a letter the alignment could not place is missing', dropped.missing.includes('z'), dropped.missing.join(''));
   const rest = lowercaseRecall(CopyLines.LINES, dropped.glyphs, { row: 0, at: zAt });
   check('the other lowercase letters stay correct', rest.precision >= 0.9, rest.correct + '/' + rest.total);
+
+  const numbered = CopyLines.read(drawNumbered(CopyLines.LINES));
+  const numberedSpot = lowercaseRecall(CopyLines.LINES, numbered.glyphs);
+  console.log('  info numbered', numberedSpot.correct + '/' + numberedSpot.total, numberedSpot.precision.toFixed(3));
+  console.log('  info numbered got', numbered.glyphs.map((g) => g.ch).join(''));
+  check('a line number and a scribble do not steal the lowercase letters', numberedSpot.precision >= 0.9,
+    numberedSpot.correct + '/' + numberedSpot.total);
+  check('the digits survive a numbered copy', '0123456789'.split('').every((ch) => numbered.glyphs.some((g) => g.ch === ch)));
 
   console.log('\n' + '='.repeat(52));
   console.log('  passed: ' + pass + '   failed: ' + failures.length);
