@@ -183,23 +183,35 @@ function alignLine(crops, text) {
   var left = sorted[0].x || 0;
   var right = sorted[sorted.length - 1].x || 0;
   var span = Math.max(1, right - left);
+  var step = span / Math.max(1, chars.length - 1);
+  function expectedX(index) {
+    return left + (chars.length <= 1 ? 0 : (index / (chars.length - 1)) * span);
+  }
   var used = Object.create(null);
   var cursor = 0;
   sorted.forEach(function (crop) {
-    var target = chars.length <= 1 ? 0 : ((crop.x || 0) - left) / span * (chars.length - 1);
+    var x = crop.x || 0;
     var best = -1;
     var bestDist = 1e9;
     var s;
     for (s = cursor; s < chars.length; s++) {
       if (chars[s] === ' ') continue;
-      var dist = Math.abs(s - target);
+      var dist = Math.abs(x - expectedX(s));
       if (dist < bestDist) {
         bestDist = dist;
         best = s;
       }
-      if (s > target + 2 && best >= 0) break;
+      if (expectedX(s) > x + step && best >= 0) break;
     }
-    if (best < 0 || used[best]) return;
+    if (best < 0) return;
+    for (s = cursor; s < best; s++) {
+      if (chars[s] === ' ') continue;
+      if (Math.abs(x - expectedX(s)) <= step * 0.85) {
+        best = s;
+        break;
+      }
+    }
+    if (chars[best] === ' ' || used[best]) return;
     used[best] = true;
     cursor = best + 1;
     var g = Object.assign({}, crop);
