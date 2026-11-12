@@ -713,17 +713,23 @@ function wireApp() {
     const pack = S.draftPack || activePack();
     if (!pack) return;
     await Glyphs.hydrate(pack);
-    const pages = Rendering.renderPages({
-      text: $('#tryPhrase').value,
-      pack,
-      size: 32,
-      jitter: 0.45,
-      seed: 3,
-      penColour: (pack.penColours && pack.penColours[0]) || '#1b2a4a',
-      paper: 'ruled',
-      paperColour: pack.paper || '#fdfcf7',
-      watermark: false,
-    });
+    let pages;
+    try {
+      pages = Rendering.renderPages({
+        text: $('#tryPhrase').value,
+        pack,
+        size: 32,
+        jitter: 0.45,
+        seed: 3,
+        penColour: (pack.penColours && pack.penColours[0]) || '#1b2a4a',
+        paper: 'ruled',
+        paperColour: pack.paper || '#fdfcf7',
+        watermark: false,
+      });
+    } catch (e) {
+      card($('#buildMsg'), e.message, 'bad');
+      return;
+    }
     const host = $('#tryPreview');
     host.innerHTML = '';
     const c = pages[0];

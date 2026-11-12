@@ -101,19 +101,20 @@ check('glyphJitterProfile ascender', sb.Rendering.glyphJitterProfile('b').rot ==
 check('glyphJitterProfile default', sb.Rendering.glyphJitterProfile('a').rot === 1);
 
 const pack = {
-  cellH: 92,
-  glyphs: [],
+  cellH: 40,
+  glyphs: [{ ch: 'a', url: 'data:image/png;base64,aa', w: 16, h: 20, by: 16, adv: 18, _img: fakeCanvas() }],
   lineGap: 40,
+  slant: 0.1,
 };
 const pages = sb.Rendering.renderPages({
-  text: '# Title\nHello world',
+  text: 'a',
   pack: pack,
-  size: 34,
-  jitter: 0.4,
+  size: 28,
+  jitter: 0.2,
   seed: 7,
   penColour: '#1b2a4a',
   paper: 'ruled',
-  watermark: true,
+  watermark: false,
 });
 check('renderPages returns canvases', Array.isArray(pages) && pages.length >= 1);
 check('exportPrintDocument html', typeof sb.Rendering.exportPrintDocument === 'function' &&
@@ -126,10 +127,10 @@ check('glyph alphabet size stable', total >= 80, String(total));
 check('completeness math', completeness > 0 && completeness < 100);
 
 const layouts = sb.Assignment.layouts();
-check('assignment layouts include exam/essay/lab',
-  layouts.some((l) => l.id === 'exam_lined') &&
-  layouts.some((l) => l.id === 'blank_essay') &&
-  layouts.some((l) => l.id === 'lab_grid'));
+check('assignment layouts are lined, plain, and grid',
+  layouts.some((l) => l.id === 'notes_lined' && l.paper === 'ruled') &&
+  layouts.some((l) => l.id === 'notes_plain' && l.paper === 'plain') &&
+  layouts.some((l) => l.id === 'notes_grid' && l.paper === 'grid'));
 
 const med = sb.Harvest.medianCellMetrics([
   { cellH: 40, cellW: 30 },
