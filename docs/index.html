@@ -101,48 +101,68 @@
   }
   </script>
 </head>
-<body>
+<body class="home">
   <a class="skip" href="#content">Skip to content</a>
   <header class="bar">
-    <a class="brand" href="./">
-      <svg width="32" height="32" viewBox="0 0 128 128" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="13" stroke-linecap="round" d="M14 96 C26 96 28 32 44 32 C60 32 58 104 74 104 C90 104 92 40 112 40"/></svg>
-      Inkcadence
-    </a>
-    <nav aria-label="Page">
-      <a class="quiet" href="#how">How it works</a>
-      <a href="#faq">FAQ</a>
-      <button type="button" id="themeToggle" class="btn ghost">Dark theme</button>
-      <a class="btn" href="app/">Open the app</a>
-    </nav>
+    <div class="navwrap">
+      <a class="brand" href="./">
+        <svg width="32" height="32" viewBox="0 0 128 128" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="13" stroke-linecap="round" d="M14 96 C26 96 28 32 44 32 C60 32 58 104 74 104 C90 104 92 40 112 40"/></svg>
+        Inkcadence
+      </a>
+      <nav aria-label="Page">
+        <a class="quiet" href="#how">How it works</a>
+        <a href="#faq">FAQ</a>
+        <button type="button" id="themeToggle" class="btn ghost">Dark theme</button>
+        <a class="btn" href="app/">Open the app</a>
+      </nav>
+    </div>
   </header>
   <main class="wrap" id="content">
     <section class="hero">
-      <p class="muted">Free · on your device · MIT</p>
-      <h1>Write anything in your own handwriting.</h1>
-      <p class="lede">You type the words. Inkcadence writes them in a hand learned from your letter sheet and, if you want, from pages you already wrote.</p>
-      <div class="answer" id="answer">
-        <strong>Inkcadence, in one sentence.</strong>
-        Inkcadence is a free browser app that learns the handwriting of one person and writes new notes, letters, and journal pages in that hand. It does not write the words. It does not upload the photos.
+      <div>
+        <p class="kicker">Free · on your device · MIT</p>
+        <h1>Write anything in your own handwriting.</h1>
+        <p class="lede">You type the words. Inkcadence writes them in a hand learned from your letter sheet and, if you want, from pages you already wrote.</p>
+        <div class="cta">
+          <a class="btn" href="app/">Open the app</a>
+          <a class="btn ghost" href="#how">See the steps</a>
+        </div>
+        <div class="stores">
+          <a class="store" href="#" data-store="apple" title="Listing link coming soon" aria-label="Download on the App Store. Listing link coming soon.">
+            <svg width="18" height="22" viewBox="0 0 18 22" aria-hidden="true"><path fill="#fff" d="M14.7 11.5c0-2.2 1.8-3.3 1.9-3.3-1-1.5-2.6-1.7-3.2-1.8-1.4-.1-2.7.8-3.4.8-.7 0-1.8-.8-3-.7-1.5.1-2.9.9-3.7 2.2-1.6 2.7-.4 6.8 1.1 9 .8 1.1 1.7 2.3 2.9 2.2 1.1 0 1.6-.7 3-.7s1.8.7 3 .7 2-1.1 2.7-2.2c.8-1.2 1.2-2.3 1.2-2.4-.1 0-2.3-.9-2.5-3.8zM12.3 4.9c.6-.8 1.1-1.8 1-2.9-1 .1-2.1.6-2.8 1.4-.6.7-1.2 1.8-1 2.8 1.1.1 2.1-.5 2.8-1.3z"/></svg>
+            <span class="store-copy"><small>Download on the</small><strong>App Store</strong></span>
+          </a>
+          <a class="store" href="#" data-store="google" title="Listing link coming soon" aria-label="Get it on Google Play. Listing link coming soon.">
+            <svg width="20" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="#34A853" d="M3.2 20.6 13.4 12 3.2 3.4c-.2.4-.2.9-.2 1.5v14.2c0 .6 0 1.1.2 1.5z"/><path fill="#4285F4" d="M3.2 3.4c.3-.4.8-.6 1.4-.5l11.2 6.4L13.4 12 3.2 3.4z"/><path fill="#FBBC04" d="M3.2 20.6 13.4 12l2.4 2.7-11.2 6.4c-.6.1-1.1-.1-1.4-.5z"/><path fill="#EA4335" d="M20.6 10.7 15.8 8l-2.4 4 2.4 4 4.8-2.7c.8-.5.8-1.6 0-2.6z"/></svg>
+            <span class="store-copy"><small>GET IT ON</small><strong>Google Play</strong></span>
+          </a>
+        </div>
       </div>
-      <div class="cta">
-        <a class="btn" href="app/">Open the app</a>
-        <a class="btn ghost" href="#how">See the steps</a>
-      </div>
-      <div class="facts">
-        <article><strong>Your words</strong><span>The app never drafts the text. You type every line.</span></article>
-        <article><strong>Your hand</strong><span>Letters come from a sheet you filled, not from a system font.</span></article>
-        <article><strong>This device</strong><span>Photos are read in the browser and are not uploaded.</span></article>
-      </div>
+      <figure class="stage">
+        <div class="sheet">
+          <span class="chip">Written by hand</span>
+          <div class="photo">
+            <img src="media/sample-page.jpg" width="790" height="1227" alt="A handwritten page with a table of class intervals and class boundaries, a note that a histogram suits grouped numbers, and a bar chart.">
+          </div>
+        </div>
+        <figcaption>A real page, shown as the sample. The app learns letters from pages like this. The photo is not kept in the saved hand.</figcaption>
+      </figure>
     </section>
 
-    <figure class="shot">
-      <img src="media/sample-page.jpg" width="790" height="1227" alt="A handwritten page with a table of class intervals and class boundaries, a note that a histogram suits grouped numbers, and a bar chart.">
-      <figcaption>A page written by hand, used here as the sample. The app learns letters from pages like this. The photo is not kept in the saved hand.</figcaption>
-    </figure>
+    <div class="answer" id="answer">
+      <strong>Inkcadence, in one sentence.</strong>
+      Inkcadence is a free browser app that learns the handwriting of one person and writes new notes, letters, and journal pages in that hand. It does not write the words. It does not upload the photos.
+    </div>
+
+    <div class="facts">
+      <article><strong>Your words</strong><span>The app never drafts the text. You type every line.</span></article>
+      <article><strong>Your hand</strong><span>Letters come from a sheet you filled, not from a system font.</span></article>
+      <article><strong>This device</strong><span>Photos are read in the browser and are not uploaded.</span></article>
+    </div>
 
     <section id="how">
       <h2>How it works</h2>
-      <p>Five steps, all in the browser. The first two are required. Old pages are optional.</p>
+      <p class="section-lead">Five steps, all in the browser. The first two are required. Old pages are optional.</p>
       <div class="steps">
         <article class="card"><span class="num">1</span><div><h3>Attest</h3><p>Tick that this is your handwriting. Only use writing you made yourself.</p></div></article>
         <article class="card"><span class="num">2</span><div><h3>Letter sheet</h3><p>Print the sheet, write one character in each box, and photograph both pages. With no printer, copy the five lines onto paper and photograph that page.</p></div></article>
@@ -165,7 +185,7 @@
 
     <section id="faq">
       <h2>Questions and answers</h2>
-      <p>These answers are the same text search engines and answer engines read from this page.</p>
+      <p class="section-lead">These answers are the same text search engines and answer engines read from this page.</p>
       <article class="qa"><h3>What is Inkcadence?</h3><p>Inkcadence is a free browser app that learns the handwriting of one person and writes new pages in that hand. You supply the words. The app supplies the letters.</p></article>
       <article class="qa"><h3>Does Inkcadence write the words?</h3><p>No. You type every word. Inkcadence only draws those words in the learned hand.</p></article>
       <article class="qa"><h3>Who is Inkcadence for?</h3><p>People who want notes, letters, or journal pages in their own handwriting. It is not for signatures, identity documents, or pages that must be written by hand.</p></article>
@@ -184,6 +204,28 @@
       <article class="qa"><h3>Can I use it offline?</h3><p>After the first visit has loaded the app, writing does not need a network.</p></article>
       <article class="qa"><h3>Is the source available?</h3><p>Yes. The license is MIT. The repository is github.com/mafzalkalwardev/inkcadence.</p></article>
       <article class="qa"><h3>Where is the live site?</h3><p>The site is on GitHub Pages at https://mafzalkalwardev.github.io/inkcadence/ and the app is at https://mafzalkalwardev.github.io/inkcadence/app/.</p></article>
+    </section>
+
+    <section class="band" aria-label="Open Inkcadence">
+      <div>
+        <h2>Start with the browser app.</h2>
+        <p>The phone listings open when the store pages are ready. The web app is live now.</p>
+      </div>
+      <div>
+        <div class="cta">
+          <a class="btn" href="app/">Open the app</a>
+        </div>
+        <div class="stores">
+          <a class="store" href="#" data-store="apple" title="Listing link coming soon" aria-label="Download on the App Store. Listing link coming soon.">
+            <svg width="18" height="22" viewBox="0 0 18 22" aria-hidden="true"><path fill="#fff" d="M14.7 11.5c0-2.2 1.8-3.3 1.9-3.3-1-1.5-2.6-1.7-3.2-1.8-1.4-.1-2.7.8-3.4.8-.7 0-1.8-.8-3-.7-1.5.1-2.9.9-3.7 2.2-1.6 2.7-.4 6.8 1.1 9 .8 1.1 1.7 2.3 2.9 2.2 1.1 0 1.6-.7 3-.7s1.8.7 3 .7 2-1.1 2.7-2.2c.8-1.2 1.2-2.3 1.2-2.4-.1 0-2.3-.9-2.5-3.8zM12.3 4.9c.6-.8 1.1-1.8 1-2.9-1 .1-2.1.6-2.8 1.4-.6.7-1.2 1.8-1 2.8 1.1.1 2.1-.5 2.8-1.3z"/></svg>
+            <span class="store-copy"><small>Download on the</small><strong>App Store</strong></span>
+          </a>
+          <a class="store" href="#" data-store="google" title="Listing link coming soon" aria-label="Get it on Google Play. Listing link coming soon.">
+            <svg width="20" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="#34A853" d="M3.2 20.6 13.4 12 3.2 3.4c-.2.4-.2.9-.2 1.5v14.2c0 .6 0 1.1.2 1.5z"/><path fill="#4285F4" d="M3.2 3.4c.3-.4.8-.6 1.4-.5l11.2 6.4L13.4 12 3.2 3.4z"/><path fill="#FBBC04" d="M3.2 20.6 13.4 12l2.4 2.7-11.2 6.4c-.6.1-1.1-.1-1.4-.5z"/><path fill="#EA4335" d="M20.6 10.7 15.8 8l-2.4 4 2.4 4 4.8-2.7c.8-.5.8-1.6 0-2.6z"/></svg>
+            <span class="store-copy"><small>GET IT ON</small><strong>Google Play</strong></span>
+          </a>
+        </div>
+      </div>
     </section>
   </main>
   <footer class="bar">
@@ -207,6 +249,9 @@
         document.documentElement.setAttribute('data-theme', next);
         try { localStorage.setItem(key, next); } catch (e) {}
         paint();
+      });
+      document.querySelectorAll('a.store[href="#"]').forEach(function (link) {
+        link.addEventListener('click', function (event) { event.preventDefault(); });
       });
     })();
   </script>
