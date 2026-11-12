@@ -112,7 +112,10 @@
       <nav aria-label="Page">
         <a class="quiet" href="#how">How it works</a>
         <a href="#faq">FAQ</a>
-        <button type="button" id="themeToggle" class="btn ghost">Dark theme</button>
+        <button type="button" id="themeToggle" class="btn ghost icon-btn" aria-label="Switch to dark theme">
+          <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M21 14.5A8.5 8.5 0 1 1 9.5 3a7 7 0 0 0 11.5 11.5z"/></svg>
+          <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M12 2.5v2.2M12 19.3v2.2M4.8 4.8l1.5 1.5M17.7 17.7l1.5 1.5M2.5 12h2.2M19.3 12h2.2M4.8 19.2l1.5-1.5M17.7 6.3l1.5-1.5"/></svg>
+        </button>
         <a class="btn" href="app/">Start writing</a>
       </nav>
     </div>
@@ -241,7 +244,7 @@
       var btn = document.getElementById('themeToggle');
       function paint() {
         var dark = document.documentElement.getAttribute('data-theme') === 'dark';
-        btn.textContent = dark ? 'Light theme' : 'Dark theme';
+        btn.setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme');
         btn.setAttribute('aria-pressed', dark ? 'true' : 'false');
         var meta = document.querySelector('meta[name="theme-color"]');
         if (meta) meta.setAttribute('content', dark ? '#14110e' : '#f4efe6');
