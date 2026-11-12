@@ -19,42 +19,17 @@
   <a href="https://mafzalkalwardev.github.io/inkcadence/app/#/"><b>Vite app</b></a>
 </p>
 
-> **Write anything in your own handwriting.** You supply the words. The landing page, the classic writer, and the Vite app are static and run in the browser. Photos stay on the device.
+> **Write anything in your own handwriting.** You supply the words. The site and the app are static and run in the browser. Photos stay on the device.
 
-The archived API, database, and neural service are on the [`experimental/backend`](https://github.com/mafzalkalwardev/inkcadence/tree/experimental/backend) branch.
+The live site is [mafzalkalwardev.github.io/inkcadence](https://mafzalkalwardev.github.io/inkcadence/). The app is at [/app/](https://mafzalkalwardev.github.io/inkcadence/app/).
 
-## See it work
-
-The walkthrough below is the **classic writer**: add pages, learn the hand, then render a lined A4 page (zoomed so the hand stays readable).
+## See a page
 
 <p align="center">
-  <img src="docs/media/working.gif" alt="Inkcadence walkthrough: add pages, learn the hand, then render a clear lined A4 page" width="880">
+  <img src="docs/media/sample-page.jpg" alt="A lined page from the demo hand" width="420">
 </p>
 
-### Light and dark
-
-| Light | Dark |
-| --- | --- |
-| <img src="docs/media/home-light.jpg" alt="Home, light theme" width="420"> | <img src="docs/media/home-dark.jpg" alt="Home, dark theme" width="420"> |
-| <img src="docs/media/write-result-light.jpg" alt="Rendered page in the light theme" width="420"> | <img src="docs/media/write-result-dark.jpg" alt="Rendered page in the dark theme" width="420"> |
-
-<img src="docs/media/result-page.jpg" alt="The rendered ruled page: a short heading and three handwritten lines" width="420">
-
-### Product workflow
-
-<img src="docs/media/workflow-product.svg" alt="Workflow: pages, match style, harvest, hand, write, export" width="880">
-
-| Pages | Learned hand |
-| --- | --- |
-| <img src="docs/media/train-samples-light.jpg" alt="Pages loaded for learning" width="420"> | <img src="docs/media/train-quality-light.jpg" alt="Learned patterns after analyse" width="420"> |
-| **Write on lined A4** | **Page zoom** |
-| <img src="docs/media/write-result-light.jpg" alt="Rendered lined page in Write" width="420"> | <img src="docs/media/result-page.jpg" alt="Zoomed handwritten A4" width="420"> |
-
-### GitHub workflows
-
-<img src="docs/media/workflow-ci.svg" alt="CI tests and builds the Vite app; Pages publishes the landing site and the app" width="880">
-
-Pull requests and pushes to `main` run [CI](.github/workflows/ci.yml): one `test` job (lint, tests, engine check, Vite build). Pushes to `main` also run [Pages](.github/workflows/pages.yml), which publishes this guide, the Vite app at `/app/`, and the classic writer at `/classic/`.
+Pull requests and pushes to `main` run [CI](.github/workflows/ci.yml): one `test` job (lint, tests, Vite build). Pushes to `main` also run [Pages](.github/workflows/pages.yml), which publishes the landing site at `/` and the app at `/app/`.
 
 ## What is in this repo
 
