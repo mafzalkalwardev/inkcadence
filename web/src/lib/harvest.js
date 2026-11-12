@@ -88,7 +88,8 @@ var FREQ = 'etaoinshrdlcumwfgypbvkjxqzETAOINSHRDLCUMWFGYPBVKJXQZ0123456789';
     }
   }
 
-  function components(mask, w, h) {
+  function components(mask, w, h, maxAspect) {
+    maxAspect = maxAspect || 2.6;
     var seen = new Uint8Array(mask.length);
     var comps = [];
     var stack = new Int32Array(mask.length);
@@ -124,7 +125,7 @@ var FREQ = 'etaoinshrdlcumwfgypbvkjxqzETAOINSHRDLCUMWFGYPBVKJXQZ0123456789';
         if (count < 22 || bw < 3 || bh < 7) continue;
         if (bw > w * 0.42 || bh > h * 0.22) continue;
         var aspect = bw / bh;
-        if (aspect > 2.6 || aspect < 0.1) continue;
+        if (aspect > maxAspect || aspect < 0.1) continue;
         /* Reject leftover horizontal rule fragments */
         if (aspect > 2.0 && bh <= 5) continue;
         var density = count / (bw * bh);
@@ -184,7 +185,8 @@ var FREQ = 'etaoinshrdlcumwfgypbvkjxqzETAOINSHRDLCUMWFGYPBVKJXQZ0123456789';
       harvested: true,
       confidence: conf,
       x: box.minX,
-      y: box.minY
+      y: box.minY,
+      _px: { w: gw, h: gh, data: od.data }
     };
   }
 
@@ -248,13 +250,14 @@ var FREQ = 'etaoinshrdlcumwfgypbvkjxqzETAOINSHRDLCUMWFGYPBVKJXQZ0123456789';
     (canvases || []).forEach(function (src, page) {
       if (!src) return;
       var info = inkMask(src, opts.maxW || 1100);
-      var comps = components(info.mask, info.w, info.h);
+      var comps = components(info.mask, info.w, info.h, opts.keepWide ? 8 : 2.6);
       var heights = comps.map(function (b) { return b.h; }).sort(function (a, b) { return a - b; });
       var xHeight = opts.xHeight || (heights.length ? heights[(heights.length * 0.5) | 0] : 0);
       comps.forEach(function (box) {
         if (!opts.keepWide && !singleLetter(box, xHeight)) return;
         var glyph = cropToGlyph(info, box);
         glyph.page = page;
+        if (!opts.keepPixels) delete glyph._px;
         all.push(glyph);
       });
     });
