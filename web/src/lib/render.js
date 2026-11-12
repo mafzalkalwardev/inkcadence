@@ -480,8 +480,8 @@ var PAGE_W = 1240, PAGE_H = 1754;   /* A4 @ 150 dpi */
     var m = buildMetrics(pack, 13, 0);
     if (!m.groups) return;
     ctx.save();
-    ctx.globalAlpha = 0.45;
-    drawGlyphLine(ctx, 'written with AI assistance', 180, H - 42, m, colour, 0.05, makeRng(3), 13, 0.15, {
+    ctx.globalAlpha = 0.9;
+    drawGlyphLine(ctx, 'written with AI assistance', 160, H - 48, buildMetrics(pack, 16, 0), colour, 0.04, makeRng(3), 16, 0.15, {
       skipMissing: true, shear: shear || 0.08, wordSpace: 5, wobble: 0.6, trace: trace
     });
     ctx.restore();

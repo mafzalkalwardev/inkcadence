@@ -188,9 +188,8 @@ function stripPhotos(pack) {
     add('<< /Type /Pages /Count ' + pages.length + ' /Kids [' + kids.join(' ') + '] >>');
     endObj();
 
-    /* PDF units are points (1/72 in). Pages are A4-proportioned canvases, so fit the
-       canvas to A4 width (210 mm = 595.28 pt) instead of using pixels as points. */
-    var PW = 595.28, PH = +(H * PW / W).toFixed(2);
+    /* A4 portrait: 210 × 297 mm = 595.28 × 841.89 pt. */
+    var PW = 595.28, PH = 841.89;
 
     pageObjs.forEach(function (po) {
       var stream = 'q\n' + PW + ' 0 0 ' + PH + ' 0 0 cm\n/Im' + po.imgId + ' Do\nQ\n';
@@ -200,6 +199,7 @@ function stripPhotos(pack) {
 
       beginObj();
       add('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + PW + ' ' + PH + '] ' +
+        '/CropBox [0 0 ' + PW + ' ' + PH + '] ' +
         '/Contents ' + po.contentId + ' 0 R /Resources << /XObject << /Im' + po.imgId +
         ' ' + po.imgId + ' 0 R >> >> >>');
       endObj();
@@ -213,6 +213,11 @@ function stripPhotos(pack) {
       endObj();
     });
 
+    beginObj();
+    add('<< /Producer (Inkcadence) /Subject (AI-assisted handwriting) >>');
+    endObj();
+    var infoId = objCount;
+
     var xrefStart = parts.reduce(function (n, p) { return n + p.length; }, 0);
     add('xref\n0 ' + (objCount + 1) + '\n');
     add('0000000000 65535 f \n');
@@ -221,13 +226,164 @@ function stripPhotos(pack) {
       while (off.length < 10) off = '0' + off;
       add(off + ' 00000 n \n');
     }
-    add('trailer\n<< /Size ' + (objCount + 1) + ' /Root 1 0 R >>\nstartxref\n' + xrefStart + '\n%%EOF');
+    add('trailer\n<< /Size ' + (objCount + 1) + ' /Root 1 0 R /Info ' + infoId + ' 0 R >>\nstartxref\n' + xrefStart + '\n%%EOF');
 
     var total = parts.reduce(function (n, p) { return n + p.length; }, 0);
     var out = new Uint8Array(total);
     var pos = 0;
     parts.forEach(function (p) { out.set(p, pos); pos += p.length; });
     return new Blob([out], { type: 'application/pdf' });
+  }
+
+  function crc32(bytes) {
+    if (!crc32.table) {
+      var table = new Uint32Array(256);
+      var n, k, c;
+      for (n = 0; n < 256; n++) {
+        c = n;
+        for (k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+        table[n] = c >>> 0;
+      }
+      crc32.table = table;
+    }
+    var crc = 0xffffffff;
+    var i;
+    for (i = 0; i < bytes.length; i++) crc = crc32.table[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+    return (crc ^ 0xffffffff) >>> 0;
+  }
+
+  function u32(n) {
+    var b = new Uint8Array(4);
+    b[0] = n & 255;
+    b[1] = (n >>> 8) & 255;
+    b[2] = (n >>> 16) & 255;
+    b[3] = (n >>> 24) & 255;
+    return b;
+  }
+
+  function u16(n) {
+    return new Uint8Array([n & 255, (n >>> 8) & 255]);
+  }
+
+  function concatBytes(list) {
+    var total = 0;
+    var i;
+    for (i = 0; i < list.length; i++) total += list[i].length;
+    var out = new Uint8Array(total);
+    var pos = 0;
+    for (i = 0; i < list.length; i++) {
+      out.set(list[i], pos);
+      pos += list[i].length;
+    }
+    return out;
+  }
+
+  function decodeDataUrl(url) {
+    var b64 = String(url).split(',')[1] || '';
+    var bin = atob(b64);
+    var arr = new Uint8Array(bin.length);
+    var i;
+    for (i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return arr;
+  }
+
+  function pngTextChunk(keyword, text) {
+    var encoder = new TextEncoder();
+    var data = encoder.encode(keyword + '\0' + text);
+    var type = encoder.encode('tEXt');
+    var len = new Uint8Array(4);
+    new DataView(len.buffer).setUint32(0, data.length);
+    var crc = u32(crc32(concatBytes([type, data])));
+    crc = new Uint8Array([crc[3], crc[2], crc[1], crc[0]]);
+    return concatBytes([len, type, data, crc]);
+  }
+
+  /* PNG tEXt is always written, even when the visible footer is off. */
+  function pngWithProvenance(pngBytes) {
+    var iend = -1;
+    var i;
+    for (i = 8; i < pngBytes.length - 4; i++) {
+      if (pngBytes[i] === 73 && pngBytes[i + 1] === 69 && pngBytes[i + 2] === 78 && pngBytes[i + 3] === 68) {
+        iend = i - 4;
+        break;
+      }
+    }
+    if (iend < 0) throw new Error('This PNG has no end marker.');
+    return concatBytes([
+      pngBytes.slice(0, iend),
+      pngTextChunk('Software', 'Inkcadence'),
+      pngTextChunk('Comment', 'AI-assisted handwriting'),
+      pngBytes.slice(iend)
+    ]);
+  }
+
+  function canvasToPng(canvas) {
+    return pngWithProvenance(decodeDataUrl(canvas.toDataURL('image/png')));
+  }
+
+  function readPngText(bytes) {
+    var out = {};
+    var i = 8;
+    var view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    while (i + 8 <= bytes.length) {
+      var len = view.getUint32(i);
+      var type = String.fromCharCode(bytes[i + 4], bytes[i + 5], bytes[i + 6], bytes[i + 7]);
+      if (type === 'tEXt') {
+        var raw = bytes.slice(i + 8, i + 8 + len);
+        var zero = raw.indexOf(0);
+        var key = new TextDecoder().decode(raw.slice(0, zero));
+        out[key] = new TextDecoder().decode(raw.slice(zero + 1));
+      }
+      if (type === 'IEND') break;
+      i += 12 + len;
+    }
+    return out;
+  }
+
+  function zipStore(files) {
+    var encoder = new TextEncoder();
+    var locals = [];
+    var centrals = [];
+    var offset = 0;
+    files.forEach(function (file) {
+      var name = encoder.encode(file.name);
+      var data = file.bytes;
+      var crc = crc32(data);
+      var local = concatBytes([
+        new Uint8Array([0x50, 0x4b, 0x03, 0x04]),
+        u16(20), u16(0), u16(0), u16(0), u16(0),
+        u32(crc), u32(data.length), u32(data.length),
+        u16(name.length), u16(0),
+        name, data
+      ]);
+      var central = concatBytes([
+        new Uint8Array([0x50, 0x4b, 0x01, 0x02]),
+        u16(20), u16(20), u16(0), u16(0), u16(0), u16(0),
+        u32(crc), u32(data.length), u32(data.length),
+        u16(name.length), u16(0), u16(0), u16(0), u16(0),
+        u32(0), u32(offset),
+        name
+      ]);
+      locals.push(local);
+      centrals.push(central);
+      offset += local.length;
+    });
+    var centralBytes = concatBytes(centrals);
+    var end = concatBytes([
+      new Uint8Array([0x50, 0x4b, 0x05, 0x06]),
+      u16(0), u16(0), u16(files.length), u16(files.length),
+      u32(centralBytes.length), u32(offset), u16(0)
+    ]);
+    return concatBytes(locals.concat([centralBytes, end]));
+  }
+
+  function downloadBytes(bytes, filename, type) {
+    var blob = bytes instanceof Blob ? bytes : new Blob([bytes], { type: type || 'application/octet-stream' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
   }
 
   function downloadPdf(pages, filename) {
@@ -246,7 +402,12 @@ function stripPhotos(pack) {
     readFileAsText: readFileAsText,
     stripPhotos: stripPhotos,
     downloadPdf: downloadPdf,
-    pagesToPdfBlob: pagesToPdfBlob
+    pagesToPdfBlob: pagesToPdfBlob,
+    canvasToPng: canvasToPng,
+    pngWithProvenance: pngWithProvenance,
+    readPngText: readPngText,
+    zipStore: zipStore,
+    downloadBytes: downloadBytes
   };
 
 export { PackShare };
