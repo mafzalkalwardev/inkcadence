@@ -26,7 +26,7 @@ The live site is [mafzalkalwardev.github.io/inkcadence](https://mafzalkalwardev.
 ## See a page
 
 <p align="center">
-  <img src="docs/media/sample-page.jpg" alt="A handwritten page used as the sample" width="420">
+  <img src="docs/media/sample-page.jpg" alt="Handwriting beside a pen, used as the sample" width="420">
 </p>
 
 Pull requests and pushes to `main` run [CI](.github/workflows/ci.yml): one `test` job (lint, tests, Vite build). Pushes to `main` also run [Pages](.github/workflows/pages.yml), which publishes the landing site at `/` and the app at `/app/`.

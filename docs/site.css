@@ -167,7 +167,21 @@ body.home > header.bar .navwrap {
   box-shadow: var(--shadow);
   transform: rotate(-1.4deg);
 }
-.photo { height: 440px; overflow: hidden; }
+.photo { overflow: hidden; border-radius: 2px; }
+.toast[hidden] { display: none; }
+.toast {
+  position: fixed; inset: 0; z-index: 30;
+  display: grid; place-items: center;
+  background: rgba(20, 17, 14, 0.55);
+  padding: 24px;
+}
+.toast p {
+  margin: 0;
+  background: #fffefb; color: #241c16;
+  font-family: Georgia, "Palatino Linotype", serif;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  padding: 28px 36px; border-radius: 18px;
+}
 .sheet img {
   display: block;
   width: 100%;
@@ -208,11 +222,10 @@ body.home > footer.bar {
 @media (max-width: 860px) {
   .hero { grid-template-columns: 1fr; gap: 28px; }
   .sheet { transform: none; }
-  .photo { height: 420px; }
   .facts { grid-template-columns: 1fr; }
 }
-@media (max-width: 700px) {
-  nav a:not(.btn) { display: none; }
+@media (max-width: 900px) {
+  body.home nav a:not(.btn) { display: none; }
   body.home > header.bar .navwrap { min-height: 60px; flex-wrap: nowrap; }
   body.home nav { flex-wrap: nowrap; gap: 8px; }
   body.home header .btn, body.home header button.btn {
