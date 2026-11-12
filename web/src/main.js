@@ -11,6 +11,7 @@ import { Assignment } from './lib/assignment.js';
 import { PackShare } from './lib/packshare.js';
 import { LetterSheet } from './lib/lettersheet.js';
 import { CopyLines } from './lib/copylines.js';
+import { Generate } from './lib/generate.js';
 import { packQuality, tryPhrase } from './lib/qa.js';
 
 CharCNN.load(['/charcnn.json', 'charcnn.json']).catch(function (err) {
@@ -508,10 +509,19 @@ async function buildDraftPack() {
     baseStyleName: base.name,
     styleScore: scored.score,
     renderMode: 'auto',
-    examples: await Harvest.examplesFromGlyphs(glyphs),
   };
+  await Glyphs.hydrate(pack);
+  Generate.ensure(pack);
+  pack.examples = await Harvest.examplesFromGlyphs(pack.glyphs);
   S.draftPack = pack;
   return pack;
+}
+
+function generatedNote(pack) {
+  const chars = Generate.generatedChars(pack);
+  if (!chars.length) return '';
+  const href = import.meta.env.BASE_URL + 'sheet.html?chars=' + encodeURIComponent(chars.join(''));
+  return `<p class="small">Generated from the other letters: ${esc(chars.join(' '))}. <a href="${href}" target="_blank">Write these by hand</a></p>`;
 }
 
 function showQa(pack) {
@@ -526,6 +536,7 @@ function showQa(pack) {
       <div class="stat"><b>${(pack.stats && pack.stats.pages) || 0}</b><span>sample pages</span></div>
     </div>
     ${qa.missing.length ? `<p class="small muted"><b>${qa.missing.length}</b> empty: ${esc(qa.missing.join(' '))}</p>` : ''}
+    ${generatedNote(pack)}
     ${(pack.pens || []).length ? `<p class="small muted">Pens: ${pack.pens.map((p) => esc(p.role) + ' ' + esc(p.kind)).join(', ')}</p>` : ''}
     ${pack.heading ? `<p class="small muted">Heading is ${esc(pack.heading.scale)}× the body text${pack.heading.underline ? ', underlined' : ''}.</p>` : ''}
     <p class="hint">${qa.ready ? 'Looks good to save.' : 'Coverage is low — fill more sheet cells for better classical output.'}</p>`;
@@ -544,8 +555,8 @@ function showResult(pack) {
   </div>`;
   if ((pack.glyphs || []).length) {
     html += '<div class="glyphgrid">' + pack.glyphs.slice(0, 90).map((g) =>
-      `<figure><img src="${esc(g.url)}" alt="${esc(g.ch)}"><figcaption>${esc(g.ch)}</figcaption></figure>`
-    ).join('') + '</div>';
+      `<figure class="${g.source === 'generated' ? 'flag' : ''}"><img src="${esc(g.url)}" alt="${esc(g.ch)}"><figcaption>${esc(g.ch)}${g.source === 'generated' ? ' · generated' : ''}</figcaption></figure>`
+    ).join('') + '</div>' + generatedNote(pack);
   }
   $('#resultBody').innerHTML = html;
   $('#resultCard').hidden = false;
@@ -651,12 +662,34 @@ function wireApp() {
     card($('#buildMsg'), 'Lining up the corner marks…');
     Promise.all(files.map((f) => Imaging.loadImageFile(f))).then(async (cans) => {
       const reads = [];
-      for (const c of cans) reads.push(LetterSheet.read(c));
+      let replaced = 0;
+      for (const c of cans) {
+        let read;
+        try {
+          read = LetterSheet.read(c);
+        } catch (e) {
+          const hand = S.draftPack || activePack();
+          const chars = Generate.generatedChars(hand || { glyphs: [] });
+          if (!chars.length || !/fill-in/i.test(String(e && e.message || ''))) throw e;
+          read = LetterSheet.read(c, { chars: chars });
+          if (hand) {
+            const before = Generate.generatedChars(hand).length;
+            Generate.replaceGenerated(hand, read);
+            replaced += Math.max(0, before - Generate.generatedChars(hand).length);
+            if (hand.id && hand !== S.draftPack) await Store.saveHand(hand);
+            showResult(hand);
+          }
+        }
+        reads.push(read);
+      }
       S.sheetReads = reads;
       S.sheetSrc = cans[0] || null;
       showSheetThumbs();
       const letters = reads.reduce((n, r) => n + r.glyphs.length, 0);
-      card($('#buildMsg'), letters + ' letters read from ' + reads.length + ' photo' + (reads.length === 1 ? '' : 's') + '.');
+      const note = replaced
+        ? ' Replaced ' + replaced + ' generated letter' + (replaced === 1 ? '' : 's') + ' with the sheet.'
+        : '';
+      card($('#buildMsg'), letters + ' letters read from ' + reads.length + ' photo' + (reads.length === 1 ? '' : 's') + '.' + note);
     }).catch((e) => card($('#buildMsg'), e.message, 'bad'));
   };
 

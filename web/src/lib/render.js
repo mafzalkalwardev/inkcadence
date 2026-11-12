@@ -1,6 +1,7 @@
 /* render.js — lays text out and paints it in the trained hand. */
 'use strict';
 import { Glyphs } from './glyphs.js';
+import { Generate } from './generate.js';
 var PAGE_W = 1240, PAGE_H = 1754;   /* A4 @ 150 dpi */
 
   function makeRng(seed) {
@@ -165,18 +166,9 @@ var PAGE_W = 1240, PAGE_H = 1754;   /* A4 @ 150 dpi */
         list = m.groups[alt];
       }
       if (!list) {
-        ctx.save();
-        ctx.font = (size * 0.95) + 'px "Segoe Script", "Ink Free", cursive';
-        ctx.fillStyle = colour;
-        ctx.globalAlpha = 0.78 + r() * 0.15;
-        ctx.textBaseline = 'alphabetic';
-        ctx.fillText(ch, x, baseline + gauss(r) * jitter * size * 0.04);
-        var missAdv = ctx.measureText(ch).width || size * 0.5;
-        ctx.restore();
-        ctx.globalAlpha = 1;
-        x += missAdv * (0.92 + r() * 0.12);
-        prev = ch;
-        continue;
+        var err = new Error("Can't write " + ch + ". It isn't in this hand, and it can't be built from the other letters.");
+        err.missing = [ch];
+        throw err;
       }
 
       x += pairKern(prev, ch, size);
@@ -257,9 +249,21 @@ var PAGE_W = 1240, PAGE_H = 1754;   /* A4 @ 150 dpi */
     ctx.restore();
   }
 
+  function blockIfNeeded(pack, text) {
+    if (!pack.glyphs || !pack.glyphs.length) return;
+    var gap = Generate.ensure(pack, text);
+    if (gap.blocked.length) {
+      var list = gap.blocked.join(' ');
+      var err = new Error("Can't write " + list + ". Those characters aren't in this hand, and they can't be built from the other letters.");
+      err.missing = gap.blocked.slice();
+      throw err;
+    }
+  }
+
   function renderPages(opts) {
     var pack = opts.pack || {};
     var text = opts.text || '';
+    blockIfNeeded(pack, text);
     var size = opts.size || 34;
     var jitter = opts.jitter == null ? 0.55 : opts.jitter;
     /* Neat pages from training → calmer hand; messy → more drift. */
@@ -369,6 +373,7 @@ var PAGE_W = 1240, PAGE_H = 1754;   /* A4 @ 150 dpi */
   function previewLine(opts) {
     var pack = opts.pack || {};
     var text = (opts.text || 'The quick brown fox writes neatly.').slice(0, 64);
+    blockIfNeeded(pack, text);
     var size = opts.size || 30;
     var colour = opts.penColour || (pack.penColours && pack.penColours[0]) || '#1b2a4a';
     var jitter = opts.jitter != null ? opts.jitter : (pack.defaultJitter || 0.4);

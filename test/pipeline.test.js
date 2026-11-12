@@ -231,7 +231,7 @@ async function main() {
     if (!harvestPack.penColours.length) harvestPack.penColours = ['#1c378c'];
     const harvestPages = sb.Rendering.renderPages({
       pack: harvestPack,
-      text: '# Midterm\nHomeostasis keeps internal conditions stable.\nThe active site shape matches one substrate.',
+      text: [...new Set(examCrops.map((g) => g.ch))].join(' '),
       size: 34,
       seed: 11,
       penColour: harvestPack.penColours[0],
