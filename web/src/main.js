@@ -800,20 +800,23 @@ function wireApp() {
       const bar = document.createElement('div');
       bar.className = 'pagebar';
       bar.innerHTML = `<div class="small muted">${pages.length} page(s)</div>`;
+      const base = pack.name.replace(/[^\w-]+/g, '_') || 'page';
       const dl = document.createElement('button');
       dl.className = 'ghost tiny';
       dl.textContent = 'Download PNGs';
       dl.onclick = () => {
-        pages.forEach((c, i) => {
-          setTimeout(() => {
-            const a = document.createElement('a');
-            a.download = (pack.name.replace(/[^\w-]+/g, '_') || 'page') + '_p' + (i + 1) + '.png';
-            a.href = c.toDataURL('image/png');
-            a.click();
-          }, i * 350);
-        });
+        const files = pages.map((c, i) => ({
+          name: base + '_p' + (i + 1) + '.png',
+          bytes: PackShare.canvasToPng(c),
+        }));
+        PackShare.downloadBytes(PackShare.zipStore(files), base + '.zip', 'application/zip');
       };
+      const pdf = document.createElement('button');
+      pdf.className = 'ghost tiny';
+      pdf.textContent = 'Download PDF';
+      pdf.onclick = () => PackShare.downloadPdf(pages, base + '.pdf');
       bar.appendChild(dl);
+      bar.appendChild(pdf);
       host.appendChild(bar);
       pages.forEach((c, i) => {
         const wrap = document.createElement('div');
