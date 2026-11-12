@@ -1,0 +1,11 @@
+{
+  "appId": "dev.mafzalkalwar.inkcadence",
+  "appName": "Inkcadence",
+  "webDir": "dist",
+  "android": {
+    "path": "android"
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}
