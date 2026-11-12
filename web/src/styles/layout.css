@@ -382,3 +382,22 @@ canvas.page {
   border-radius: 6px;
 }
 .glyphgrid figure.flag figcaption { color: var(--accent); }
+
+.home-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+.home-actions button { min-height: 52px; font-size: 17px; width: 100%; }
+.attest { display: flex; gap: 10px; align-items: center; font-weight: 700; margin: 8px 0; }
+.attest input { width: auto; min-height: 22px; }
+.step-actions { margin-top: 14px; }
+@media (max-width: 700px) {
+  .app-shell { display: flex; flex-direction: column; }
+  .workspace { order: -1; padding: 16px 16px 28px; }
+  .sidebar { order: 1; }
+  .step-actions {
+    position: sticky;
+    bottom: 0;
+    background: var(--paper);
+    padding: 12px 0 8px;
+    z-index: 2;
+  }
+  .step-actions button { min-height: 48px; flex: 1; }
+}
