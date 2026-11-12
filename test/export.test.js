@@ -89,8 +89,8 @@ async function main() {
   check('the AI-assisted note is on by default', footOn > footOff + 8, footOn + ' vs ' + footOff);
   check('the note can be turned off', footOff < footOn);
 
-  const mainJs = fs.readFileSync(path.join(__dirname, '..', 'web', 'src', 'main.js'), 'utf8');
-  check('the note checkbox starts checked', /id="wMark" checked/.test(mainJs));
+  const writeJs = fs.readFileSync(path.join(__dirname, '..', 'web', 'src', 'screens', 'write.js'), 'utf8');
+  check('the note checkbox starts checked', /id="wMark" checked/.test(writeJs));
 
   const png = PackShare.canvasToPng(on[0]);
   const text = PackShare.readPngText(png);
