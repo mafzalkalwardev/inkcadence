@@ -171,6 +171,27 @@ function dropLineNumber(crops, text) {
   return sorted;
 }
 
+/* A printed line has gaps of one letter or one word. Handwriting does not. */
+function evenPitch(sorted) {
+  var gaps = [];
+  var i;
+  for (i = 1; i < sorted.length; i++) {
+    var gap = (sorted[i].x || 0) - (sorted[i - 1].x || 0);
+    if (gap > 2) gaps.push(gap);
+  }
+  if (gaps.length < 4) return 0;
+  gaps.sort(function (a, b) { return a - b; });
+  var pitch = gaps[Math.max(0, (gaps.length * 0.35) | 0)];
+  if (pitch < 4) return 0;
+  var irregular = 0;
+  gaps.forEach(function (gap) {
+    var units = gap / pitch;
+    if (Math.abs(units - Math.round(units)) > 0.22) irregular++;
+  });
+  if (irregular / gaps.length > 0.28) return 0;
+  return pitch;
+}
+
 function alignLine(crops, text) {
   var chars = text.split('');
   var sorted = dropLineNumber(sliceWide(mergeStacked(crops), text), text);
@@ -178,6 +199,25 @@ function alignLine(crops, text) {
   var glyphs = [];
   if (!sorted.length) {
     chars.forEach(function (ch) { if (ch !== ' ') missing.push(ch); });
+    return { glyphs: glyphs, missing: missing };
+  }
+  var pitch = evenPitch(sorted);
+  if (pitch) {
+    var origin = sorted[0].x || 0;
+    var usedPitch = Object.create(null);
+    sorted.forEach(function (crop) {
+      var slot = Math.round(((crop.x || 0) - origin) / pitch);
+      if (slot < 0 || slot >= chars.length || usedPitch[slot] || chars[slot] === ' ') return;
+      usedPitch[slot] = true;
+      var placed = Object.assign({}, crop);
+      placed.ch = chars[slot];
+      placed.source = 'sheet';
+      placed.confirmed = false;
+      glyphs.push(placed);
+    });
+    chars.forEach(function (ch, slot) {
+      if (ch !== ' ' && !usedPitch[slot]) missing.push(ch);
+    });
     return { glyphs: glyphs, missing: missing };
   }
   var left = sorted[0].x || 0;
