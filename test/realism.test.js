@@ -21,7 +21,7 @@ async function main() {
 
   const layouts = Assignment.layouts();
   assert.ok(layouts.length >= 3, 'layout presets exist');
-  assert.strictEqual(Assignment.layoutById('blank_essay').paper, 'plain');
+  assert.strictEqual(Assignment.layoutById('notes_plain').paper, 'plain');
 
   const score = Assignment.styleScore({
     pages: 2,

@@ -272,6 +272,7 @@ async function main() {
   };
   if (!pack.penColours.length) pack.penColours = [stats.palette[0].hex];
 
+  const trace = [];
   const pages = sb.Rendering.renderPages({
     pack,
     text: '# Homework\nThe mitochondria produce ATP for the cell.\nDNA stores genetic information in base pairs.\nI need to revise chapter four before Friday.',
@@ -282,6 +283,7 @@ async function main() {
     paperColour: pack.paper,
     paper: 'ruled',
     watermark: true,
+    trace,
   });
   check('render produced pages', pages.length >= 1, String(pages.length));
 
@@ -300,6 +302,28 @@ async function main() {
     if (lum < 140) dark++;
   }
   check('rendered page has ink pixels', dark > 200, 'darkSamples=' + dark);
+  check('rendered page draws no font text', !(pages[0]._fontWrites && pages[0]._fontWrites()));
+  const full = ctx.getImageData(0, 0, pages[0].width, pages[0].height);
+  let pen = 0;
+  let outside = 0;
+  const fw = full.width;
+  for (let y = 0; y < full.height; y += 2) {
+    for (let x = 0; x < fw; x += 2) {
+      const p = (y * fw + x) * 4;
+      const r = full.data[p];
+      const g = full.data[p + 1];
+      const b = full.data[p + 2];
+      if (r > 90 || g > 100 || b > 140) continue;
+      pen++;
+      let inside = false;
+      for (let t = 0; t < trace.length; t++) {
+        const box = trace[t];
+        if (x >= box.x && y >= box.y && x <= box.x + box.w && y <= box.y + box.h) { inside = true; break; }
+      }
+      if (!inside) outside++;
+    }
+  }
+  check('rendered ink stays inside glyph boxes', pen > 20 && outside / pen < 0.02, outside + '/' + pen);
 
   console.log('\n' + '='.repeat(52));
   console.log('  passed: ' + pass + '   failed: ' + failures.length);

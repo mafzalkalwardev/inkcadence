@@ -50,9 +50,9 @@ function pack(partial) {
   var BUILTINS = [
     pack({
       id: 'builtin_neat_navy',
-      name: 'Neat Navy · exam',
+      name: 'Neat navy',
       quality: 'best',
-      description: 'Careful school-exam hand, double-underlined headings.',
+      description: 'Careful navy hand, double-underlined headings.',
       fontFamily: SCRIPT,
       headingStyle: 'double',
       slant: 0.04,
@@ -114,9 +114,9 @@ function pack(partial) {
     }),
     pack({
       id: 'builtin_green_lab',
-      name: 'Green Lab · practical',
+      name: 'Green notes',
       quality: 'normal',
-      description: 'Science-lab green ink, underlined section titles.',
+      description: 'Green ink, underlined section titles.',
       fontFamily: SCRIPT,
       headingStyle: 'underline',
       slant: 0.08,
@@ -130,9 +130,9 @@ function pack(partial) {
     }),
     pack({
       id: 'builtin_crimson_essay',
-      name: 'Crimson Essay · best',
+      name: 'Crimson notes',
       quality: 'best',
-      description: 'Essay hand with red-brown ink and double headings.',
+      description: 'Red-brown ink and double headings.',
       fontFamily: BRUSH,
       headingStyle: 'double',
       slant: 0.1,

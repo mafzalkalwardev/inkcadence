@@ -320,8 +320,75 @@ var CHARS = 'abcdefghijklmnopqrstuvwxyz' +
       ctx.drawImage(c, -0.6, 0);
       ctx.globalAlpha = 1;
     }
+    if (opts.texture !== false) strokeTexture(c);
+    trimSpecks(c);
     tintCache[key] = c;
     return c;
+  }
+
+  function strokeTexture(canvas) {
+    var ctx = canvas.getContext('2d');
+    var w = canvas.width, h = canvas.height;
+    if (w < 2 || h < 2) return;
+    var img = ctx.getImageData(0, 0, w, h);
+    var d = img.data;
+    var i, n = d.length, wobble;
+    for (i = 0; i < n; i += 16) {
+      if (d[i + 3] < 40) continue;
+      wobble = ((i * 17) % 7) - 3;
+      d[i] = Math.max(0, Math.min(255, d[i] + wobble));
+      d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + wobble));
+      d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + wobble));
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  /* Phone-photo shadows become stray ticks if they stay in the mask. */
+  function trimSpecks(canvas) {
+    var ctx = canvas.getContext('2d');
+    var w = canvas.width, h = canvas.height;
+    if (w < 2 || h < 2 || w * h > 200000) return;
+    var img = ctx.getImageData(0, 0, w, h);
+    var d = img.data;
+    var n = w * h;
+    var seen = new Uint8Array(n);
+    var comps = [];
+    var best = 0;
+    var i, stack, pixels, count, p, x, y, dx, dy, nx, ny, np;
+    for (i = 0; i < n; i++) {
+      if (seen[i] || d[i * 4 + 3] < 24) continue;
+      stack = [i];
+      seen[i] = 1;
+      pixels = [];
+      count = 0;
+      while (stack.length) {
+        p = stack.pop();
+        pixels.push(p);
+        count++;
+        x = p % w;
+        y = (p / w) | 0;
+        for (dy = -1; dy <= 1; dy++) {
+          for (dx = -1; dx <= 1; dx++) {
+            if (!dx && !dy) continue;
+            nx = x + dx;
+            ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+            np = ny * w + nx;
+            if (seen[np] || d[np * 4 + 3] < 24) continue;
+            seen[np] = 1;
+            stack.push(np);
+          }
+        }
+      }
+      if (count > best) best = count;
+      comps.push(pixels);
+    }
+    var keep = Math.max(10, best * 0.08);
+    comps.forEach(function (px) {
+      if (px.length >= keep) return;
+      px.forEach(function (idx) { d[idx * 4 + 3] = 0; });
+    });
+    ctx.putImageData(img, 0, 0);
   }
 
   function hydrate(pack) {

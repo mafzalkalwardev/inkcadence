@@ -2,8 +2,8 @@
 'use strict';
 var LAYOUTS = [
     {
-      id: 'exam_lined',
-      name: 'Exam · lined A4',
+      id: 'notes_lined',
+      name: 'Lined notes',
       paper: 'ruled',
       headingStyle: 'double',
       marginL: 136,
@@ -12,8 +12,8 @@ var LAYOUTS = [
       continuity: true
     },
     {
-      id: 'blank_essay',
-      name: 'Essay · blank A4',
+      id: 'notes_plain',
+      name: 'Plain page',
       paper: 'plain',
       headingStyle: 'underline',
       marginL: 128,
@@ -22,8 +22,8 @@ var LAYOUTS = [
       continuity: true
     },
     {
-      id: 'lab_grid',
-      name: 'Lab · grid A4',
+      id: 'notes_grid',
+      name: 'Grid page',
       paper: 'grid',
       headingStyle: 'underline',
       marginL: 120,
@@ -32,8 +32,8 @@ var LAYOUTS = [
       continuity: true
     },
     {
-      id: 'homework_lined',
-      name: 'Homework · lined',
+      id: 'notes_ruled',
+      name: 'Ruled notes',
       paper: 'ruled',
       headingStyle: 'underline',
       marginL: 136,
