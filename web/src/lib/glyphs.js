@@ -311,9 +311,9 @@ var CHARS = 'abcdefghijklmnopqrstuvwxyz' +
     ctx.fillStyle = colour;
     ctx.fillRect(0, 0, glyph.w, glyph.h);
     ctx.globalCompositeOperation = 'destination-in';
-    if (glyph._img && glyph._img.complete) ctx.drawImage(glyph._img, 0, 0);
+    if (glyph._img && (glyph._img.complete || glyph._img.getContext)) ctx.drawImage(glyph._img, 0, 0);
     /* Soft pressure fringe without changing glyph bounds. */
-    if (bleed > 0.25 && glyph._img && glyph._img.complete) {
+    if (bleed > 0.25 && glyph._img && (glyph._img.complete || glyph._img.getContext)) {
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 0.18 * Math.min(1, bleed);
       ctx.drawImage(c, 0.6, 0);

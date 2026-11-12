@@ -377,3 +377,8 @@ canvas.page {
   margin: 4px 0;
   font-family: ui-monospace, Consolas, monospace;
 }
+.glyphgrid figure.flag {
+  outline: 1px dashed var(--accent);
+  border-radius: 6px;
+}
+.glyphgrid figure.flag figcaption { color: var(--accent); }
