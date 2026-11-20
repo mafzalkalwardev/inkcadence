@@ -61,13 +61,38 @@ function main() {
     check('step is on the page: ' + step.name, home.includes(step.text));
   });
 
+  const official = 'https://inkcadence.induswebagency.com/';
   const sitemap = fs.readFileSync(path.join(docs, 'sitemap.xml'), 'utf8');
   check('sitemap has no hash URLs', !sitemap.includes('#'));
-  check('sitemap lists terms and privacy', sitemap.includes('terms.html') && sitemap.includes('privacy.html'));
+  check('sitemap does not list github.io', !sitemap.includes('github.io'));
+  check('sitemap lists the official homepage', sitemap.includes('<loc>' + official + '</loc>'));
+  check('sitemap omits pages that canonicalize to the homepage',
+    !sitemap.includes('terms.html') && !sitemap.includes('privacy.html') && !sitemap.includes('/app/'));
   check('home has one canonical', (home.match(/rel="canonical"/g) || []).length === 1);
-  check('terms and privacy have their own canonical',
-    pages[1].text.includes('terms.html') && pages[2].text.includes('privacy.html') &&
-    pages[1].text.includes('rel="canonical"') && pages[2].text.includes('rel="canonical"'));
+  check('home canonical is the official site', home.includes('rel="canonical" href="' + official + '"'));
+  check('home og:url matches the canonical', home.includes('property="og:url" content="' + official + '"'));
+  check('terms and privacy canonicalize to the official site',
+    pages[1].text.includes('rel="canonical" href="' + official + '"') &&
+    pages[2].text.includes('rel="canonical" href="' + official + '"'));
+  check('landing pages link the official site', [home, pages[1].text, pages[2].text].every((text) =>
+    text.includes('class="official-site"') && text.includes('https://inkcadence.induswebagency.com/')));
+  const robots = fs.readFileSync(path.join(docs, 'robots.txt'), 'utf8');
+  check('robots sitemap is the official site', robots.includes('Sitemap: ' + official + 'sitemap.xml'));
+  check('llms.txt does not list github.io', !pages[3].text.includes('github.io'));
+  const root = path.join(__dirname, '..');
+  const published = {
+    'index.html': official + 'classic/',
+    'sheet.html': official + 'classic/sheet.html',
+    'web/index.html': official,
+    'web/sheet.html': official,
+  };
+  Object.entries(published).forEach(([file, href]) => {
+    const html = fs.readFileSync(path.join(root, file), 'utf8');
+    check(file + ' canonical', html.includes('rel="canonical" href="' + href + '"'));
+    check(file + ' og:url matches canonical', html.includes('property="og:url" content="' + href + '"'));
+    check(file + ' links the official site', html.includes('>inkcadence.induswebagency.com</a>'));
+    check(file + ' has no github.io canonical', !/rel="canonical" href="[^"]*github\.io/.test(html));
+  });
 
   const og = pngSize(path.join(docs, 'media', 'og.png'));
   check('OG image is 1200 by 630', og.w === 1200 && og.h === 630, og.w + 'x' + og.h);

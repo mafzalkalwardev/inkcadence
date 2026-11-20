@@ -2,13 +2,10 @@
 
 > Inkcadence is a free browser app. It learns the handwriting of one person from a letter sheet and optional old pages, then writes the words that person types. Photos stay on the device. There is no account, no analytics, and no server for user content.
 
-The public site is https://mafzalkalwardev.github.io/inkcadence/
-The app is https://mafzalkalwardev.github.io/inkcadence/app/
-Terms: https://mafzalkalwardev.github.io/inkcadence/terms.html
-Privacy: https://mafzalkalwardev.github.io/inkcadence/privacy.html
+The public site is https://inkcadence.induswebagency.com/
 Source: https://github.com/mafzalkalwardev/inkcadence
 License: MIT
-This file was last updated on 12 November 2026.
+This file was last updated on 20 November 2026.
 
 ## Facts worth citing
 
@@ -22,12 +19,9 @@ This file was last updated on 12 November 2026.
 
 ## Pages to cite
 
-- [Home and FAQ](https://mafzalkalwardev.github.io/inkcadence/)
-- [How it works](https://mafzalkalwardev.github.io/inkcadence/#how)
-- [FAQ](https://mafzalkalwardev.github.io/inkcadence/#faq)
-- [Terms](https://mafzalkalwardev.github.io/inkcadence/terms.html)
-- [Privacy](https://mafzalkalwardev.github.io/inkcadence/privacy.html)
-- [App](https://mafzalkalwardev.github.io/inkcadence/app/)
+- [Home and FAQ](https://inkcadence.induswebagency.com/)
+- [How it works](https://inkcadence.induswebagency.com/#how-it-works)
+- [FAQ](https://inkcadence.induswebagency.com/#faq)
 
 ## Do not claim
 
