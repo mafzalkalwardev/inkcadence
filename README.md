@@ -11,17 +11,19 @@
 
 <h1 align="center">Inkcadence</h1>
 
+Official site: https://inkcadence.induswebagency.com/
+
 <p align="center">
-  <a href="https://mafzalkalwardev.github.io/inkcadence/"><b>▶ Live site</b></a>
+  <a href="https://inkcadence.induswebagency.com/"><b>▶ Official site</b></a>
   &nbsp;·&nbsp;
-  <a href="https://mafzalkalwardev.github.io/inkcadence/classic/"><b>Classic writer</b></a>
+  <a href="https://inkcadence.induswebagency.com/classic/"><b>Classic writer</b></a>
   &nbsp;·&nbsp;
-  <a href="https://mafzalkalwardev.github.io/inkcadence/app/#/"><b>Vite app</b></a>
+  <a href="https://inkcadence.induswebagency.com/app/"><b>Vite app</b></a>
 </p>
 
 > **Write anything in your own handwriting.** You supply the words. The site and the app are static and run in the browser. Photos stay on the device.
 
-The live site is [mafzalkalwardev.github.io/inkcadence](https://mafzalkalwardev.github.io/inkcadence/). The app is at [/app/](https://mafzalkalwardev.github.io/inkcadence/app/).
+The official site is [inkcadence.induswebagency.com](https://inkcadence.induswebagency.com/). The classic writer is at [/classic/](https://inkcadence.induswebagency.com/classic/).
 
 ## See a page
 

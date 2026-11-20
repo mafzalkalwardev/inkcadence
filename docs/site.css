@@ -42,6 +42,16 @@ a:focus-visible, button:focus-visible {
   padding: 8px 12px; border-radius: 8px; z-index: 6;
 }
 .skip:focus { top: 12px; }
+.official-site {
+  margin: 0;
+  padding: 8px 16px;
+  text-align: center;
+  font-size: 0.92rem;
+  background: var(--card);
+  color: var(--soft);
+  border-bottom: 1px solid var(--line);
+}
+.official-site a { font-weight: 700; }
 .wrap { width: min(1080px, calc(100% - 40px)); margin-inline: auto; }
 header.bar, footer.bar {
   width: min(1080px, calc(100% - 40px));
