@@ -98,49 +98,31 @@ var CHARS = 'abcdefghijklmnopqrstuvwxyz' +
     var span = Math.max(1, paper - inkLum);
     var edgeX = sheetBox ? Math.max(3, Math.round(sw * 0.07)) : 2;
     var edgeY = sheetBox ? Math.max(3, Math.round(shh * 0.08)) : 2;
+    /* The printed baseline is one thin rule at 76% of the box. A letter that sits on it has ink above that rule. */
     var baseY = Math.round(shh * 0.76);
-    var band = Math.max(2, Math.round(shh * 0.04));
+    var ruleBand = sheetBox ? Math.max(1, Math.round(shh * 0.02)) : 0;
+
+    function onPrintedRule(x, y) {
+      if (!ruleBand || soft || Math.abs(y - baseY) > ruleBand) return false;
+      var above = 0, seen = 0, yy;
+      var y0 = Math.max(edgeY, y - Math.round(shh * 0.14));
+      for (yy = y0; yy <= y - ruleBand - 1; yy++) {
+        seen++;
+        if (lum[yy * sw + x] <= paper - 40) above++;
+      }
+      return seen > 0 && above / seen < 0.2;
+    }
 
     for (var y = 0; y < shh; y++) {
       for (var x = 0; x < sw; x++) {
         p = y * sw + x;
         if (x < edgeX || y < edgeY || x >= sw - edgeX || y >= shh - edgeY) continue;
         if (sheetBox && (x < sw * 0.30 && y < shh * 0.28)) continue;
-        if (sheetBox && !soft && Math.abs(y - baseY) <= band) continue;
+        if (onPrintedRule(x, y)) continue;
         var a = (paper - lum[p]) / span;
         a = a <= floor ? 0 : (a > 1 ? 255 : (a - floor) / (1 - floor) * 255);
         if (a < alphaCut) a = 0;
         alpha[p] = a;
-      }
-    }
-    /* Printed rules are long straight runs. A letter stroke is not.
-       Only on a letter-sheet box: a small glyph cell would treat a period as a rule. */
-    var runLimitX = sw * 0.42, runLimitY = shh * 0.55;
-    if (!sheetBox) { runLimitX = sw + 1; runLimitY = shh + 1; }
-    for (y = 0; y < shh; y++) {
-      var run = 0, start = 0, x2;
-      for (x2 = 0; x2 <= sw; x2++) {
-        var on = x2 < sw && alpha[y * sw + x2] > 0;
-        if (on) { if (!run) start = x2; run++; }
-        else if (run) {
-          if (run >= runLimitX) {
-            for (var k = start; k < start + run; k++) alpha[y * sw + k] = 0;
-          }
-          run = 0;
-        }
-      }
-    }
-    for (var x3 = 0; x3 < sw; x3++) {
-      run = 0; start = 0;
-      for (y = 0; y <= shh; y++) {
-        on = y < shh && alpha[y * sw + x3] > 0;
-        if (on) { if (!run) start = y; run++; }
-        else if (run) {
-          if (run >= runLimitY) {
-            for (k = start; k < start + run; k++) alpha[k * sw + x3] = 0;
-          }
-          run = 0;
-        }
       }
     }
     count = 0;
