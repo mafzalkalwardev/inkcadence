@@ -34,7 +34,7 @@ var CHARS = 'abcdefghijklmnopqrstuvwxyz' +
   }
 
   /* crop one cell and turn it into a transparent alpha glyph */
-  function extractCell(scan, cx, cy, cw, ch, pad, expectedChar) {
+  function extractCell(scan, cx, cy, cw, ch, pad, expectedChar, sheetBox) {
     var ctx = scan.getContext('2d');
     var sx = Math.max(0, Math.round(cx)), sy = Math.max(0, Math.round(cy));
     var sw = Math.min(scan.width - sx, Math.round(cw)), shh = Math.min(scan.height - sy, Math.round(ch));
@@ -78,11 +78,15 @@ var CHARS = 'abcdefghijklmnopqrstuvwxyz' +
     }
 
     var inkLum = percentileFromHist(hist, n, soft ? 0.005 : 0.03);
-    /* For soft glyphs, also consider absolute darkest pixel so pale dots count. */
+    /* For soft glyphs, also consider absolute darkest pixel so pale dots count.
+       A normal letter in a full box is only a thin stroke, under the 3% point. */
+    var absMin = 255, qi;
+    for (qi = 0; qi < 256; qi++) if (hist[qi]) { absMin = qi; break; }
     if (soft) {
-      var absMin = 255, qi;
-      for (qi = 0; qi < 256; qi++) if (hist[qi]) { absMin = qi; break; }
       inkLum = Math.min(inkLum, absMin + 8);
+    } else {
+      var tail = percentileFromHist(hist, n, 0.008);
+      if (paper - tail >= 48) inkLum = Math.min(inkLum, tail);
     }
     var minContrast = soft ? 16 : 48;
     if (paper - inkLum < minContrast) return null;
@@ -92,17 +96,57 @@ var CHARS = 'abcdefghijklmnopqrstuvwxyz' +
     var alpha = new Uint8ClampedArray(n);
     var minX = sw, minY = shh, maxX = -1, maxY = -1, count = 0;
     var span = Math.max(1, paper - inkLum);
+    var edgeX = sheetBox ? Math.max(3, Math.round(sw * 0.07)) : 2;
+    var edgeY = sheetBox ? Math.max(3, Math.round(shh * 0.08)) : 2;
+    var baseY = Math.round(shh * 0.76);
+    var band = Math.max(2, Math.round(shh * 0.04));
 
     for (var y = 0; y < shh; y++) {
       for (var x = 0; x < sw; x++) {
         p = y * sw + x;
-        /* ignore printed border + corner tag */
-        if (x < 2 || y < 2 || x > sw - 3 || y > shh - 3 || (x < sw * 0.22 && y < shh * 0.2)) continue;
+        if (x < edgeX || y < edgeY || x >= sw - edgeX || y >= shh - edgeY) continue;
+        if (sheetBox && (x < sw * 0.30 && y < shh * 0.28)) continue;
+        if (sheetBox && !soft && Math.abs(y - baseY) <= band) continue;
         var a = (paper - lum[p]) / span;
         a = a <= floor ? 0 : (a > 1 ? 255 : (a - floor) / (1 - floor) * 255);
         if (a < alphaCut) a = 0;
         alpha[p] = a;
-        if (a > 0) {
+      }
+    }
+    /* Printed rules are long straight runs. A letter stroke is not.
+       Only on a letter-sheet box: a small glyph cell would treat a period as a rule. */
+    var runLimitX = sw * 0.42, runLimitY = shh * 0.55;
+    if (!sheetBox) { runLimitX = sw + 1; runLimitY = shh + 1; }
+    for (y = 0; y < shh; y++) {
+      var run = 0, start = 0, x2;
+      for (x2 = 0; x2 <= sw; x2++) {
+        var on = x2 < sw && alpha[y * sw + x2] > 0;
+        if (on) { if (!run) start = x2; run++; }
+        else if (run) {
+          if (run >= runLimitX) {
+            for (var k = start; k < start + run; k++) alpha[y * sw + k] = 0;
+          }
+          run = 0;
+        }
+      }
+    }
+    for (var x3 = 0; x3 < sw; x3++) {
+      run = 0; start = 0;
+      for (y = 0; y <= shh; y++) {
+        on = y < shh && alpha[y * sw + x3] > 0;
+        if (on) { if (!run) start = y; run++; }
+        else if (run) {
+          if (run >= runLimitY) {
+            for (k = start; k < start + run; k++) alpha[k * sw + x3] = 0;
+          }
+          run = 0;
+        }
+      }
+    }
+    count = 0;
+    for (y = 0; y < shh; y++) {
+      for (x = 0; x < sw; x++) {
+        if (alpha[y * sw + x] > 0) {
           count++;
           if (x < minX) minX = x;
           if (x > maxX) maxX = x;
@@ -142,7 +186,8 @@ var CHARS = 'abcdefghijklmnopqrstuvwxyz' +
       w: gw, h: gh,
       bx: minX,
       by: Math.round(ch * 0.76) - minY,
-      adv: Math.min(sw, maxX + 1) + Math.round(cw * 0.06),
+      /* Step from this stroke to the next. The old value included the empty left side of the box, so letters sat a box apart. */
+      adv: gw + Math.max(2, Math.round(cw * 0.08)),
       cellH: ch,
       cellW: cw
     };
