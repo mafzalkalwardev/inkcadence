@@ -125,6 +125,7 @@ var CHARS = 'abcdefghijklmnopqrstuvwxyz' +
         alpha[p] = a;
       }
     }
+    if (sheetBox) keepLargestStroke(alpha, sw, shh);
     count = 0;
     for (y = 0; y < shh; y++) {
       for (x = 0; x < sw; x++) {
@@ -173,6 +174,79 @@ var CHARS = 'abcdefghijklmnopqrstuvwxyz' +
       cellH: ch,
       cellW: cw
     };
+  }
+
+  /* The printed guide is a second mark. Keep the stroke the writer made. */
+  function keepLargestStroke(alpha, sw, shh) {
+    var n = sw * shh;
+    var seen = new Uint8Array(n);
+    var best = null;
+    var bestN = 0;
+    var i, stack, pixels, p, x, y, dx, dy, nx, ny, np;
+    for (i = 0; i < n; i++) {
+      if (seen[i] || alpha[i] < 12) continue;
+      stack = [i];
+      seen[i] = 1;
+      pixels = [];
+      while (stack.length) {
+        p = stack.pop();
+        pixels.push(p);
+        x = p % sw;
+        y = (p / sw) | 0;
+        for (dy = -1; dy <= 1; dy++) {
+          for (dx = -1; dx <= 1; dx++) {
+            if (!dx && !dy) continue;
+            nx = x + dx;
+            ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= sw || ny >= shh) continue;
+            np = ny * sw + nx;
+            if (seen[np] || alpha[np] < 12) continue;
+            seen[np] = 1;
+            stack.push(np);
+          }
+        }
+      }
+      if (pixels.length > bestN) {
+        bestN = pixels.length;
+        best = pixels;
+      }
+    }
+    if (!best) return;
+    var keep = new Uint8Array(n);
+    best.forEach(function (idx) { keep[idx] = 1; });
+    for (i = 0; i < n; i++) if (!keep[i]) alpha[i] = 0;
+  }
+
+  /* A capital written in a lowercase box is taller than the real small letter. */
+  function keepMatchingCase(glyphs) {
+    var by = Object.create(null);
+    (glyphs || []).forEach(function (g) {
+      if (g && g.ch) (by[g.ch] || (by[g.ch] = [])).push(g);
+    });
+    var xh = 'acemnorsuvwxz';
+    var drop = [];
+    var i, ch, low, up, capH, short, g;
+    for (i = 0; i < xh.length; i++) {
+      ch = xh.charAt(i);
+      low = by[ch] || [];
+      up = by[ch.toUpperCase()] || [];
+      if (low.length < 2 || !up.length) continue;
+      capH = medianHeight(up);
+      if (!(capH > 4)) continue;
+      short = low.filter(function (item) { return item.h < capH * 0.72; });
+      if (!short.length) continue;
+      for (var j = 0; j < low.length; j++) {
+        g = low[j];
+        if (g.h > capH * 0.82) drop.push(g);
+      }
+    }
+    if (!drop.length) return glyphs || [];
+    return (glyphs || []).filter(function (item) { return drop.indexOf(item) < 0; });
+  }
+
+  function medianHeight(list) {
+    var hs = list.map(function (g) { return g.h || 0; }).sort(function (a, b) { return a - b; });
+    return hs[(hs.length * 0.5) | 0] || 0;
   }
 
   function extractGlyphs(scan, rect, cols, rows, chars) {
@@ -442,6 +516,7 @@ var CHARS = 'abcdefghijklmnopqrstuvwxyz' +
     const Glyphs = {
     CHARS: CHARS, COLS: COLS, ROWS: ROWS,
     extractCell: extractCell,
+    keepMatchingCase: keepMatchingCase,
     extractGlyphs: extractGlyphs,
     detectSheetGrid: detectSheetGrid,
     scoreSheetGrid: scoreSheetGrid,
