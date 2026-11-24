@@ -9,6 +9,7 @@ export const S = {
   wizardStep: 1,
   draftPack: null,
   renderMode: 'auto',
+  writeHydratedId: null,
 };
 
 export function $(sel, el = document) {

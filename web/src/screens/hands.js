@@ -14,6 +14,7 @@ export function onHandSelect(fn) {
 
 export async function refreshPacks() {
   S.packs = (await Store.hands()) || [];
+  S.writeHydratedId = null;
   if (!S.activeId && S.packs.length) S.activeId = S.packs[0].id;
   if (!S.packs.some((p) => p.id === S.activeId)) S.activeId = S.packs[0]?.id || null;
 }
@@ -184,7 +185,8 @@ export function wireHands() {
         S.activeId = pack.id;
         renderPackList();
         renderPackSelect();
-        card(host, 'Imported “' + pack.name + '”. Open Write to use it.');
+        S.writeHydratedId = null;
+        card(host, 'Imported “' + esc(pack.name) + '”. Open Write to use it.');
         onSelect(pack);
       } catch (err) {
         card(host, 'That .inkpack could not be read. Export a hand from Inkcadence and try again.', 'bad');
@@ -223,6 +225,7 @@ export function wireHands() {
       const report = Harvest.addToHand(hand, harvested, stats);
       await Store.saveHand(hand);
       await refreshPacks();
+      S.writeHydratedId = null;
       renderPackList();
       renderPackSelect();
       const pages = cans.length === 1 ? '1 page' : cans.length + ' pages';

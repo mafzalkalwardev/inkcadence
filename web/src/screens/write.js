@@ -7,7 +7,15 @@ import { activePack, syncPenSwatches } from './hands.js';
 
 let previewTimer = 0;
 let writing = false;
-let hydratedId = null;
+
+function needsHydrate(pack) {
+  if (S.writeHydratedId !== pack.id) return true;
+  const glyphs = pack.glyphs || [];
+  for (let i = 0; i < glyphs.length; i++) {
+    if (glyphs[i] && glyphs[i].url && !glyphs[i]._img) return true;
+  }
+  return false;
+}
 
 export function writeHtml() {
   const layouts = Assignment.layouts();
@@ -108,9 +116,9 @@ async function writePages(opts) {
   if (btn) btn.disabled = true;
   card($('#writeMsg'), 'Laying out pages…');
   try {
-    if (hydratedId !== pack.id) {
+    if (needsHydrate(pack)) {
       await Glyphs.hydrate(pack);
-      hydratedId = pack.id;
+      S.writeHydratedId = pack.id;
     }
     const pages = Rendering.renderPages(collectOpts(pack));
     card($('#writeMsg'), pages.length === 1 ? 'Page ready.' : pages.length + ' pages ready.');
@@ -137,7 +145,7 @@ export function wireWrite() {
   if ($('#wPack')) {
     $('#wPack').onchange = () => {
       S.activeId = $('#wPack').value;
-      hydratedId = null;
+      S.writeHydratedId = null;
       syncPenSwatches();
       applyHandDefaults();
       schedulePreview();
