@@ -5,7 +5,7 @@ import { CharCNN } from './lib/charcnn.js';
 import { S, $, esc, card } from './ui/shared.js';
 import { homeHtml } from './screens/home.js';
 import { guideHtml, wireGuide, setWizard, loadDemoHand } from './screens/guide.js';
-import { writeHtml, wireWrite } from './screens/write.js';
+import { writeHtml, wireWrite, kickWritePreview } from './screens/write.js';
 import {
   refreshPacks, renderPackList, renderPackSelect, wireHands, onHandSelect,
 } from './screens/hands.js';
@@ -70,7 +70,21 @@ function showScreen(name) {
   document.querySelectorAll('.tabs button').forEach((b) => {
     b.classList.toggle('on', b.dataset.tab === name);
   });
-  if (name === 'write') renderPackSelect();
+  if (name === 'write') {
+    renderPackSelect();
+    kickWritePreview();
+  }
+}
+
+async function ensureDemoHand() {
+  if (S.packs.some((p) => p.id === 'pk_demo')) return true;
+  try {
+    await loadDemoHand();
+    await refreshPacks();
+    return true;
+  } catch (_) {
+    return false;
+  }
 }
 
 function startGuide() {
@@ -93,6 +107,11 @@ initTheme();
 
 async function renderApp() {
   await refreshPacks();
+  await ensureDemoHand();
+  if (!S.activeId) {
+    const demo = S.packs.find((p) => p.id === 'pk_demo');
+    if (demo) S.activeId = demo.id;
+  }
   const canSave = Store.persistent();
   root.innerHTML = `
   <div class="app-shell">
@@ -115,7 +134,10 @@ async function renderApp() {
       <div class="sidebar-actions">
         <button class="btn-new" id="btnNewPack" type="button">Make my handwriting</button>
         <button class="btn-ghost" id="btnAddPages" type="button">Add pages</button>
+        <button class="btn-ghost" id="btnImportHand" type="button">Import .inkpack</button>
+        <button class="btn-ghost" id="btnExportHand" type="button">Export hand</button>
         <input id="fileAddPages" type="file" accept="image/*" multiple hidden>
+        <input id="fileImportHand" type="file" accept=".inkpack,text/plain,application/json" hidden>
         ${themeToggleHtml()}
       </div>
     </aside>
@@ -144,7 +166,7 @@ async function renderApp() {
       if (demo) S.activeId = demo.id;
       renderPackList();
       showScreen('write');
-      card($('#writeMsg'), 'Demo hand is ready. Tap Write the page.');
+      card($('#writeMsg'), 'Demo hand is ready. The page updates as you type.');
     } catch (e) {
       card($('#homeMsg'), 'The demo hand is not on this site yet. Make your own from the letter sheet.', 'bad');
     }

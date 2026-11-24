@@ -88,6 +88,13 @@ function stripPhotos(pack) {
       : [];
     data.harvestedCount = finiteOrUndef(data.harvestedCount);
     data.styleScore = finiteOrUndef(data.styleScore);
+    data.slant = finiteOrUndef(data.slant);
+    data.strokeWidth = finiteOrUndef(data.strokeWidth);
+    data.cellH = finiteOrUndef(data.cellH);
+    data.cellW = finiteOrUndef(data.cellW);
+    data.tracking = finiteOrUndef(data.tracking);
+    data.defaultJitter = finiteOrUndef(data.defaultJitter);
+    data.defaultSize = finiteOrUndef(data.defaultSize);
     if (data.stats && typeof data.stats === 'object' && !Array.isArray(data.stats)) {
       ['strokeWidth', 'slant', 'pages'].forEach(function (k) {
         if (k in data.stats) data.stats[k] = finiteOrUndef(data.stats[k]);

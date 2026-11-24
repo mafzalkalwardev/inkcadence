@@ -30,7 +30,7 @@ async function main() {
   const home = fs.readFileSync(path.join(__dirname, '..', 'web', 'src', 'screens', 'home.js'), 'utf8');
   const guide = fs.readFileSync(path.join(__dirname, '..', 'web', 'src', 'screens', 'guide.js'), 'utf8');
   check('home offers Make my handwriting', home.includes('Make my handwriting') && home.includes('btnMakeHand'));
-  check('home offers Try the demo hand', home.includes('Try the demo hand') && home.includes('btnDemo'));
+  check('home offers Write a page with the demo hand', home.includes('Write a page') && home.includes('btnDemo'));
   check('the guide attests before the sheet', guide.indexOf('This is my handwriting') < guide.indexOf('Letter sheet'));
   check('old pages are optional', guide.includes('wizSkip3') && guide.includes('Old pages'));
   check('analyse shows progress', guide.includes('analyseBar') && guide.includes('analyseMsg'));
