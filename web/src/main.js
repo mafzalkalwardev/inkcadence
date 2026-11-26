@@ -4,10 +4,10 @@ import { Store } from './lib/store.js';
 import { CharCNN } from './lib/charcnn.js';
 import { S, $, esc, card } from './ui/shared.js';
 import { homeHtml } from './screens/home.js';
-import { guideHtml, wireGuide, setWizard, loadDemoHand } from './screens/guide.js';
+import { guideHtml, wireGuide, setWizard, loadDemoHand, showResult, showQa } from './screens/guide.js';
 import { writeHtml, wireWrite, kickWritePreview } from './screens/write.js';
 import {
-  refreshPacks, renderPackList, renderPackSelect, wireHands, onHandSelect,
+  refreshPacks, renderPackList, renderPackSelect, wireHands, onHandSelect, activePack,
 } from './screens/hands.js';
 
 CharCNN.load(['/charcnn.json', 'charcnn.json']).catch(function (err) {
@@ -133,6 +133,7 @@ async function renderApp() {
       </div>
       <div class="sidebar-actions">
         <button class="btn-new" id="btnNewPack" type="button">Make my handwriting</button>
+        <button class="btn-ghost" id="btnReviewLetters" type="button">Review letters</button>
         <button class="btn-ghost" id="btnAddPages" type="button">Add pages</button>
         <button class="btn-ghost" id="btnImportHand" type="button">Import .inkpack</button>
         <button class="btn-ghost" id="btnExportHand" type="button">Export hand</button>
@@ -170,6 +171,19 @@ async function renderApp() {
     } catch (e) {
       card($('#homeMsg'), 'The demo hand is not on this site yet. Make your own from the letter sheet.', 'bad');
     }
+  };
+  $('#btnReviewLetters').onclick = async () => {
+    const pack = activePack();
+    if (!pack) {
+      card($('#homeMsg'), 'Pick a hand first, or write a page with the demo hand.', 'bad');
+      return;
+    }
+    S.draftPack = pack;
+    showScreen('train');
+    setWizard(5);
+    showQa(pack);
+    showResult(pack);
+    card($('#buildMsg'), 'Fix letters here. Changes save on this device.');
   };
   onHandSelect(() => showScreen('write'));
   wireHands();

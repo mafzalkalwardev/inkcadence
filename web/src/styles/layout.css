@@ -324,6 +324,93 @@ html[data-theme="dark"] .hero::after {
 .glyphgrid img { max-width: 100%; height: 30px; object-fit: contain; display: block; margin: 0 auto; }
 .glyphgrid figcaption { font-size: 10px; color: var(--muted); font-family: ui-monospace, monospace; }
 
+.review-board {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 12px;
+  max-height: min(58vh, 640px);
+  overflow: auto;
+  padding-right: 4px;
+}
+.review-char-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.review-ch {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  min-width: 1.2em;
+}
+.review-variants {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.review-glyph {
+  width: 72px;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--glyph-bg);
+  cursor: pointer;
+  text-align: center;
+  color: inherit;
+}
+.review-glyph img {
+  width: 100%;
+  height: 36px;
+  object-fit: contain;
+  display: block;
+}
+.review-glyph-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  justify-content: center;
+  margin-top: 4px;
+  min-height: 14px;
+}
+.review-glyph.is-selected,
+.review-glyph:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
+  outline: none;
+}
+.review-glyph.is-best { border-color: var(--ok, #2f9e6b); }
+.review-glyph.is-low { border-style: dashed; }
+.review-glyph.flag { background: color-mix(in srgb, var(--accent) 8%, var(--glyph-bg)); }
+.glyph-badge {
+  font-size: 9px;
+  line-height: 1.2;
+  padding: 1px 4px;
+  border-radius: 999px;
+  background: var(--step-bg);
+  color: var(--muted);
+  text-transform: lowercase;
+}
+.glyph-badge-generated,
+.glyph-badge-low { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.glyph-badge-best,
+.glyph-badge-confirmed { color: var(--ok, #2f9e6b); }
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 12px 0 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.review-actions a.ghost {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
 .write-desk {
   display: grid;
   grid-template-columns: minmax(280px, 420px) minmax(0, 1fr);

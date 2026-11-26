@@ -183,6 +183,7 @@ var FREQ = 'etaoinshrdlcumwfgypbvkjxqzETAOINSHRDLCUMWFGYPBVKJXQZ0123456789';
       cellH: Math.round(gh * 1.15),
       cellW: Math.round(gw * 1.2),
       harvested: true,
+      source: 'page',
       confidence: conf,
       x: box.minX,
       y: box.minY,
@@ -286,6 +287,7 @@ var FREQ = 'etaoinshrdlcumwfgypbvkjxqzETAOINSHRDLCUMWFGYPBVKJXQZ0123456789';
 
   function glyphQuality(g) {
     var q = g.confidence || g.cnnConf || 0;
+    if (g.best) q += 4;
     if (g.source === 'sheet' || g.confirmed) q += 2;
     return q;
   }
@@ -434,6 +436,7 @@ var FREQ = 'etaoinshrdlcumwfgypbvkjxqzETAOINSHRDLCUMWFGYPBVKJXQZ0123456789';
     collectCrops: collectCrops,
     examplesFromGlyphs: examplesFromGlyphs,
     confirmLetter: confirmLetter,
+    handSummary: handSummary,
     addToHand: addToHand,
     inkMask: inkMask,
     components: components,

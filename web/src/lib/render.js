@@ -120,10 +120,16 @@ var PAGE_W = 1240, PAGE_H = 1754;   /* A4 @ 150 dpi */
   function pickVariant(list, r, prev) {
     if (!list || !list.length) return null;
     if (list.length === 1) return list[0];
-    var pool = [];
+    var best = [];
     var i;
-    for (i = 0; i < list.length; i++) if (list[i] !== prev) pool.push(list[i]);
-    if (!pool.length) pool = list;
+    for (i = 0; i < list.length; i++) {
+      if (list[i] && list[i].best) best.push(list[i]);
+    }
+    if (best.length === 1) return best[0];
+    var pool = [];
+    var from = best.length ? best : list;
+    for (i = 0; i < from.length; i++) if (from[i] !== prev) pool.push(from[i]);
+    if (!pool.length) pool = from;
     return pool[(r() * pool.length) | 0];
   }
 
