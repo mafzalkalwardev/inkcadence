@@ -247,8 +247,14 @@ async function persistReviewPack(pack) {
   S.draftPack = pack;
   S.writeHydratedId = null;
   try { Generate.ensure(pack); } catch (_) { /* keep edits even if fill fails */ }
-  if (pack.id && pack.id !== 'pk_demo' && !pack.readOnly) {
-    try { await Store.saveHand(pack); } catch (_) { /* session-only draft is fine */ }
+  /* Only write hands already in storage — wizard drafts get an id before Save. */
+  const alreadySaved = !!(pack.id && S.packs.some((p) => p && p.id === pack.id));
+  if (alreadySaved && pack.id !== 'pk_demo' && !pack.readOnly) {
+    try {
+      await Store.saveHand(pack);
+      const i = S.packs.findIndex((p) => p && p.id === pack.id);
+      if (i >= 0) S.packs[i] = pack;
+    } catch (_) { /* session-only draft is fine */ }
   }
   showQa(pack);
   showResult(pack);

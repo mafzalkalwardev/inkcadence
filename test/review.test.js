@@ -84,15 +84,21 @@ async function main() {
   check('delete removes one variant', hand.glyphs.length === 2 && hand.glyphs[0].ch === 'a' && hand.glyphs[0].best === true);
 
   const target = hand.glyphs[0];
+  await Review.relabel(hand, target, 'a');
+  const beforeCount = hand.examples.length;
+  check('first confirm joins personal examples', beforeCount >= 1 && hand.examples.some((ex) => ex.ch === 'a'));
+
   await Review.relabel(hand, target, 'e');
   check('relabel changes the character', target.ch === 'e');
   check('relabel confirms the letter', target.confirmed === true);
-  check('relabel joins personal examples', hand.examples.length >= 1 && hand.examples.some((ex) => ex.ch === 'e'));
+  check('relabel drops the old label for that embedding', !hand.examples.some((ex) => ex.ch === 'a'));
+  check('relabel keeps the new label once', hand.examples.filter((ex) => ex.ch === 'e').length === 1);
+  check('relabel does not grow conflicting twins', hand.examples.length === beforeCount);
 
   const pred = {
     ch: 'Z',
     conf: 0.4,
-    embedding: hand.examples[0].embedding,
+    embedding: hand.examples.find((ex) => ex.ch === 'e').embedding,
     probs: null,
   };
   const decided = CharCNN.decideLabel(pred, { h: 20 }, hand.examples, 24);

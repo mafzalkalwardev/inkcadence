@@ -337,15 +337,33 @@ var FREQ = 'etaoinshrdlcumwfgypbvkjxqzETAOINSHRDLCUMWFGYPBVKJXQZ0123456789';
     return chain.then(function () { return out; });
   }
 
+  function embeddingCosine(a, b) {
+    if (!a || !b || a.length !== b.length) return 0;
+    var dot = 0, na = 0, nb = 0, i;
+    for (i = 0; i < a.length; i++) {
+      dot += a[i] * b[i];
+      na += a[i] * a[i];
+      nb += b[i] * b[i];
+    }
+    if (na < 1e-8 || nb < 1e-8) return 0;
+    return dot / Math.sqrt(na * nb);
+  }
+
   function confirmLetter(hand, glyph) {
     if (!hand.examples) hand.examples = [];
     if (glyph) glyph.confirmed = true;
     if (glyph && glyph.ch && glyph.embedding) {
       var emb = glyph.embedding;
       if (typeof emb !== 'object' || typeof emb.length !== 'number') return hand;
+      var copy = Array.prototype.slice.call(emb);
+      /* Replace near-duplicate examples so a relabel does not leave a conflicting twin. */
+      hand.examples = hand.examples.filter(function (ex) {
+        if (!ex || !ex.embedding) return true;
+        return embeddingCosine(ex.embedding, copy) < 0.90;
+      });
       hand.examples.push({
         ch: glyph.ch,
-        embedding: Array.prototype.slice.call(emb)
+        embedding: copy
       });
     }
     return hand;
