@@ -65,7 +65,7 @@ function glyph(ch, family) {
 }
 
 const family = font();
-const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.';
+const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,;:!?\"'-()";
 const glyphs = chars.split('').map((ch) => glyph(ch, family));
 const pack = {
   id: 'pk_demo',

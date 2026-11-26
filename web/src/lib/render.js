@@ -366,7 +366,9 @@ var PAGE_W = 1240, PAGE_H = 1754;   /* A4 @ 150 dpi */
     var watermark = opts.watermark !== false;
     var continuity = opts.continuity !== false;
     var pageNumbers = !!opts.pageNumbers;
-    var shearBase = (pack.slant != null ? pack.slant : (pack.stats && pack.stats.slant)) || 0.1;
+    var shearBase = opts.slant != null
+      ? opts.slant
+      : ((pack.slant != null ? pack.slant : (pack.stats && pack.stats.slant)) || 0.1);
     shearBase = Math.max(-0.2, Math.min(0.35, 0.08 + shearBase));
     var bleed = opts.bleed;
     if (bleed == null) {
