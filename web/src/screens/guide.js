@@ -10,10 +10,13 @@ import { PackShare } from '../lib/packshare.js';
 import { LetterSheet } from '../lib/lettersheet.js';
 import { CopyLines } from '../lib/copylines.js';
 import { Generate } from '../lib/generate.js';
+import { Review } from '../lib/review.js';
 import { packQuality, tryPhrase } from '../lib/qa.js';
 import { S, $, esc, card } from '../ui/shared.js';
 import { analyzeCanvases, photoProblem, explainSheetError } from '../ui/analyse.js';
 import { activePack, refreshPacks, renderPackList, renderPackSelect } from './hands.js';
+
+let reviewFocus = { ch: null, index: 0 };
 
 export function guideHtml() {
   return `
@@ -134,7 +137,7 @@ function generatedNote(pack) {
   return `<p class="small">Generated from the other letters: ${esc(chars.join(' '))}. <a href="${href}" target="_blank">Write these by hand</a></p>`;
 }
 
-function showQa(pack) {
+export function showQa(pack) {
   const qa = packQuality(pack);
   const host = $('#qaBody');
   if (!host) return;
@@ -154,25 +157,192 @@ function showQa(pack) {
     <p class="hint">${qa.ready ? 'Looks good to save.' : 'Some letters are still missing. You can write the ones you have, or fill a sheet for the rest.'}</p>`;
 }
 
+function badgeHtml(g) {
+  const bits = [];
+  const src = Review.glyphSource(g);
+  if (src === 'sheet' || src === 'page' || src === 'generated') bits.push(src);
+  if (g.best) bits.push('best');
+  if (g.confirmed) bits.push('confirmed');
+  if (Review.isLowConfidence(g)) bits.push('low');
+  return bits.map((b) => `<span class="glyph-badge glyph-badge-${esc(b)}">${esc(b)}</span>`).join('');
+}
+
 export function showResult(pack) {
   if (!pack || !$('#resultBody')) return;
-  const st = pack.stats || {};
-  const qa = packQuality(pack);
-  let html = `<div class="stats">
-    <div class="stat"><b>${st.pages || 0}</b><span>reference pages</span></div>
-    <div class="stat"><b>${st.slant != null ? (st.slant * 100).toFixed(0) + '%' : '—'}</b><span>slant</span></div>
-    <div class="stat"><b>${st.strokeWidth || '—'}</b><span>stroke px</span></div>
-    <div class="stat"><b>${(pack.glyphs || []).length}</b><span>letterforms</span></div>
-    <div class="stat"><b>${qa.score}</b><span>QA score</span></div>
+  const summary = Review.coverageSummary(pack);
+  const groups = Glyphs.groupByChar(pack.glyphs || []);
+  const chars = Object.keys(groups).sort((a, b) => a.localeCompare(b));
+  let html = `<div class="stats review-summary" aria-live="polite">
+    <div class="stat"><b>${summary.coverage}%</b><span>coverage</span></div>
+    <div class="stat"><b>${summary.chars}</b><span>characters</span></div>
+    <div class="stat"><b>${summary.variants}</b><span>variants</span></div>
+    <div class="stat"><b>${summary.low}</b><span>need a look</span></div>
+    <div class="stat"><b>${summary.generated}</b><span>generated</span></div>
   </div>`;
-  if ((pack.glyphs || []).length) {
-    html += '<div class="glyphgrid">' + pack.glyphs.slice(0, 90).map((g) =>
-      `<figure class="${g.source === 'generated' ? 'flag' : ''}"><img src="${esc(g.url)}" alt="${esc(g.ch)}"><figcaption>${esc(g.ch)}${g.source === 'generated' ? ' · generated' : ''}</figcaption></figure>`
-    ).join('') + '</div>' + generatedNote(pack);
-  }
+  html += `<p class="small muted">Select a letter with Tab or click. Arrow keys move between variants. Enter opens the actions.</p>`;
+  html += `<div class="review-board" id="reviewBoard" role="list">`;
+  chars.forEach((ch) => {
+    const list = groups[ch];
+    html += `<section class="review-char" data-ch="${esc(ch)}" role="group" aria-label="Character ${esc(ch)}">
+      <h4 class="review-char-head"><span class="review-ch">${esc(ch)}</span>
+        <span class="small muted">${list.length} variant${list.length === 1 ? '' : 's'}</span></h4>
+      <div class="review-variants" role="listbox" aria-label="Variants of ${esc(ch)}">`;
+    list.forEach((g, i) => {
+      const cls = [
+        'review-glyph',
+        Review.glyphSource(g) === 'generated' ? 'flag' : '',
+        g.best ? 'is-best' : '',
+        Review.isLowConfidence(g) ? 'is-low' : '',
+      ].filter(Boolean).join(' ');
+      const gi = (pack.glyphs || []).indexOf(g);
+      html += `<button type="button" class="${cls}" role="option" data-ch="${esc(ch)}" data-index="${i}" data-gi="${gi}"
+        aria-label="${esc(ch)} variant ${i + 1}" tabindex="${ch === (reviewFocus.ch || chars[0]) && i === (reviewFocus.index || 0) ? '0' : '-1'}">
+        <img src="${esc(g.url)}" alt="">
+        <span class="review-glyph-meta">${badgeHtml(g)}</span>
+      </button>`;
+    });
+    html += `</div></section>`;
+  });
+  html += `</div>`;
+  html += `<div class="review-actions" id="reviewActions">
+    <button type="button" class="ghost tiny" id="revRelabel">Relabel</button>
+    <button type="button" class="ghost tiny" id="revBest">Mark best</button>
+    <button type="button" class="ghost tiny" id="revAccept">Accept</button>
+    <button type="button" class="ghost tiny" id="revDelete">Delete</button>
+    <a class="ghost tiny" id="revFillIn" href="#" target="_blank" rel="noopener">Fill-in sheet</a>
+    <span class="small muted" id="revStatus" aria-live="polite"></span>
+  </div>`;
+  html += generatedNote(pack);
   $('#resultBody').innerHTML = html;
   const cardEl = $('#resultCard');
   if (cardEl) cardEl.hidden = false;
+  wireReviewBoard(pack);
+}
+
+function selectedGlyph(pack) {
+  const groups = Glyphs.groupByChar(pack.glyphs || []);
+  const ch = reviewFocus.ch || Object.keys(groups).sort()[0];
+  const list = groups[ch] || [];
+  const idx = Math.max(0, Math.min(reviewFocus.index || 0, list.length - 1));
+  return { ch, index: idx, glyph: list[idx] || null, list };
+}
+
+function focusGlyphButton(ch, index) {
+  reviewFocus = { ch, index };
+  const board = $('#reviewBoard');
+  if (!board) return;
+  board.querySelectorAll('.review-glyph').forEach((btn) => {
+    const on = btn.dataset.ch === ch && +btn.dataset.index === index;
+    btn.tabIndex = on ? 0 : -1;
+    btn.setAttribute('aria-selected', on ? 'true' : 'false');
+    btn.classList.toggle('is-selected', on);
+  });
+  const active = board.querySelector('.review-glyph.is-selected');
+  if (active) active.focus();
+  const status = $('#revStatus');
+  if (status) status.textContent = ch ? `Selected “${ch}” #${index + 1}` : '';
+}
+
+async function persistReviewPack(pack) {
+  S.draftPack = pack;
+  S.writeHydratedId = null;
+  try { Generate.ensure(pack); } catch (_) { /* keep edits even if fill fails */ }
+  /* Only write hands already in storage — wizard drafts get an id before Save. */
+  const alreadySaved = !!(pack.id && S.packs.some((p) => p && p.id === pack.id));
+  if (alreadySaved && pack.id !== 'pk_demo' && !pack.readOnly) {
+    try {
+      await Store.saveHand(pack);
+      const i = S.packs.findIndex((p) => p && p.id === pack.id);
+      if (i >= 0) S.packs[i] = pack;
+    } catch (_) { /* session-only draft is fine */ }
+  }
+  showQa(pack);
+  showResult(pack);
+}
+
+function wireReviewBoard(pack) {
+  const board = $('#reviewBoard');
+  if (!board || board.dataset.wired === '1') {
+    /* re-rendered: rebind */
+  }
+  const buttons = [...board.querySelectorAll('.review-glyph')];
+  if (!buttons.length) return;
+  if (!reviewFocus.ch || !Glyphs.groupByChar(pack.glyphs || [])[reviewFocus.ch]) {
+    reviewFocus = { ch: buttons[0].dataset.ch, index: 0 };
+  }
+  focusGlyphButton(reviewFocus.ch, reviewFocus.index);
+
+  board.onclick = (ev) => {
+    const btn = ev.target.closest('.review-glyph');
+    if (!btn) return;
+    focusGlyphButton(btn.dataset.ch, +btn.dataset.index);
+  };
+
+  board.onkeydown = (ev) => {
+    const groups = Glyphs.groupByChar(pack.glyphs || []);
+    const chars = Object.keys(groups).sort((a, b) => a.localeCompare(b));
+    const { ch, index, list } = selectedGlyph(pack);
+    const ci = chars.indexOf(ch);
+    if (ev.key === 'ArrowRight' || ev.key === 'ArrowDown') {
+      ev.preventDefault();
+      if (index + 1 < list.length) focusGlyphButton(ch, index + 1);
+      else if (ci + 1 < chars.length) focusGlyphButton(chars[ci + 1], 0);
+    } else if (ev.key === 'ArrowLeft' || ev.key === 'ArrowUp') {
+      ev.preventDefault();
+      if (index > 0) focusGlyphButton(ch, index - 1);
+      else if (ci > 0) {
+        const prev = chars[ci - 1];
+        focusGlyphButton(prev, groups[prev].length - 1);
+      }
+    } else if (ev.key === 'Enter' || ev.key === ' ') {
+      ev.preventDefault();
+      const relabel = $('#revRelabel');
+      if (relabel) relabel.focus();
+    }
+  };
+
+  const fill = $('#revFillIn');
+  if (fill) {
+    const chars = Review.coverageSummary(pack).generatedChars;
+    const href = import.meta.env.BASE_URL + 'sheet.html' + (chars.length ? ('?chars=' + encodeURIComponent(chars.join(''))) : '');
+    fill.href = href;
+  }
+
+  const setBusy = (msg) => {
+    const status = $('#revStatus');
+    if (status) status.textContent = msg || '';
+  };
+
+  $('#revRelabel').onclick = async () => {
+    const { glyph } = selectedGlyph(pack);
+    if (!glyph) return;
+    const next = prompt('Relabel this letter as', glyph.ch);
+    if (!next || !next.trim()) return;
+    setBusy('Updating…');
+    await Review.relabel(pack, glyph, next.trim());
+    await persistReviewPack(pack);
+  };
+  $('#revBest').onclick = async () => {
+    const { glyph } = selectedGlyph(pack);
+    if (!glyph) return;
+    Review.markBest(pack, glyph);
+    await persistReviewPack(pack);
+  };
+  $('#revAccept').onclick = async () => {
+    const { glyph } = selectedGlyph(pack);
+    if (!glyph) return;
+    setBusy('Accepting…');
+    await Review.acceptGenerated(pack, glyph);
+    await persistReviewPack(pack);
+  };
+  $('#revDelete').onclick = async () => {
+    const { glyph, ch } = selectedGlyph(pack);
+    if (!glyph) return;
+    if (!confirm('Delete this variant of “' + ch + '”?')) return;
+    Review.deleteGlyph(pack, glyph);
+    reviewFocus = { ch, index: 0 };
+    await persistReviewPack(pack);
+  };
 }
 
 function handPens(stats) {
@@ -216,7 +386,9 @@ async function buildDraftPack() {
     if (typeof CharCNN !== 'undefined' && CharCNN.load && !CharCNN.isReady()) {
       try { await CharCNN.load(['/charcnn.json', 'charcnn.json']); } catch (_) { /* empty harvest */ }
     }
-    harvested = await Harvest.harvestFromPagesAsync(S.refImages, { examples: [] });
+    let sheetExamples = [];
+    try { sheetExamples = await Harvest.examplesFromGlyphs(glyphs); } catch (_) { sheetExamples = []; }
+    harvested = await Harvest.harvestFromPagesAsync(S.refImages, { examples: sheetExamples });
     glyphs = Harvest.mergeVariants(glyphs, harvested);
     if (!hadSheetGlyphs && harvested.length) {
       const med = Harvest.medianCellMetrics ? Harvest.medianCellMetrics(harvested) : null;

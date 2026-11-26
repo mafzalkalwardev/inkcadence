@@ -425,6 +425,7 @@ var WEIGHTS_URLS = [
     predictImage: predictImage,
     predictDataUrl: predictDataUrl,
     predictTensor: predictTensor,
+    decideLabel: decideLabel,
     labelCrops: labelCrops,
     labelCropsSync: labelCropsSync,
     glyphToTensor: glyphToTensor,
