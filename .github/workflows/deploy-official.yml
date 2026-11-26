@@ -1,0 +1,44 @@
+name: Deploy official site
+
+# Publishes the same tree as Pages to the Oracle VPS behind
+# https://inkcadence.induswebagency.com/ when OFFICIAL_SSH_KEY is set.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-official
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: ${{ secrets.OFFICIAL_SSH_KEY != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - name: Assemble site
+        run: bash scripts/assemble-site.sh
+      - name: Publish to inkcadence.induswebagency.com
+        env:
+          OFFICIAL_SSH_KEY: ${{ secrets.OFFICIAL_SSH_KEY }}
+          OFFICIAL_SSH_HOST: ${{ secrets.OFFICIAL_SSH_HOST }}
+          OFFICIAL_SSH_USER: ${{ secrets.OFFICIAL_SSH_USER }}
+          OFFICIAL_SSH_PATH: ${{ secrets.OFFICIAL_SSH_PATH }}
+        run: |
+          set -euo pipefail
+          host="${OFFICIAL_SSH_HOST:-89.168.127.135}"
+          user="${OFFICIAL_SSH_USER:-ubuntu}"
+          dest="${OFFICIAL_SSH_PATH:-/var/www/inkcadence}"
+          mkdir -p ~/.ssh
+          printf '%s\n' "$OFFICIAL_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$host" >> ~/.ssh/known_hosts 2>/dev/null || true
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" \
+            _site/ "${user}@${host}:${dest}/"
+          echo "Published to ${user}@${host}:${dest}"
