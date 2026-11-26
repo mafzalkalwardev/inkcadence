@@ -13,22 +13,34 @@ concurrency:
 
 jobs:
   deploy:
-    if: ${{ secrets.OFFICIAL_SSH_KEY != '' }}
     runs-on: ubuntu-latest
+    env:
+      OFFICIAL_SSH_KEY: ${{ secrets.OFFICIAL_SSH_KEY }}
+      OFFICIAL_SSH_HOST: ${{ secrets.OFFICIAL_SSH_HOST }}
+      OFFICIAL_SSH_USER: ${{ secrets.OFFICIAL_SSH_USER }}
+      OFFICIAL_SSH_PATH: ${{ secrets.OFFICIAL_SSH_PATH }}
     steps:
+      - name: Require deploy key
+        if: ${{ env.OFFICIAL_SSH_KEY == '' }}
+        run: |
+          echo "::notice::Skipping official deploy — add repo secret OFFICIAL_SSH_KEY (and optional OFFICIAL_SSH_HOST / USER / PATH)."
+          exit 0
+
       - uses: actions/checkout@v4
+        if: ${{ env.OFFICIAL_SSH_KEY != '' }}
+
       - uses: actions/setup-node@v4
+        if: ${{ env.OFFICIAL_SSH_KEY != '' }}
         with:
           node-version: "20"
           cache: npm
+
       - name: Assemble site
+        if: ${{ env.OFFICIAL_SSH_KEY != '' }}
         run: bash scripts/assemble-site.sh
+
       - name: Publish to inkcadence.induswebagency.com
-        env:
-          OFFICIAL_SSH_KEY: ${{ secrets.OFFICIAL_SSH_KEY }}
-          OFFICIAL_SSH_HOST: ${{ secrets.OFFICIAL_SSH_HOST }}
-          OFFICIAL_SSH_USER: ${{ secrets.OFFICIAL_SSH_USER }}
-          OFFICIAL_SSH_PATH: ${{ secrets.OFFICIAL_SSH_PATH }}
+        if: ${{ env.OFFICIAL_SSH_KEY != '' }}
         run: |
           set -euo pipefail
           host="${OFFICIAL_SSH_HOST:-89.168.127.135}"
