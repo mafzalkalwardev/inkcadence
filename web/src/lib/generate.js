@@ -117,6 +117,33 @@ function sheared(source, slant) {
 }
 
 var RECIPES = {
+  '.': function (d) {
+    var o = first(d, 'o') || first(d, 'a') || first(d, 'e');
+    if (!drawable(o)) return null;
+    var c = canvas(Math.max(6, Math.round(o.w * 0.45)), o.h);
+    var ctx = c.getContext('2d');
+    var r = Math.max(1.6, Math.min(o.w * 0.16, 4));
+    ctx.fillStyle = '#111';
+    ctx.beginPath();
+    ctx.arc(c.width / 2, Math.max(r + 1, baseOf(o) - r), r, 0, Math.PI * 2);
+    ctx.fill();
+    return c;
+  },
+  '-': function (d) {
+    var e = first(d, 'e') || first(d, 'a') || first(d, 'o');
+    if (!drawable(e)) return null;
+    var c = canvas(Math.max(8, Math.round(e.w * 0.8)), e.h);
+    var ctx = c.getContext('2d');
+    ctx.strokeStyle = '#111';
+    ctx.lineWidth = Math.max(1.6, Math.min(3.2, (e.h || 12) * 0.08));
+    ctx.lineCap = 'round';
+    var y = Math.round(baseOf(e) * 0.55);
+    ctx.beginPath();
+    ctx.moveTo(c.width * 0.12, y);
+    ctx.lineTo(c.width * 0.88, y);
+    ctx.stroke();
+    return c;
+  },
   m: function (d) {
     var n = first(d, 'n');
     return n ? sideBySide(n, n, 0.42) : null;

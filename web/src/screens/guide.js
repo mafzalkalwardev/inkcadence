@@ -204,6 +204,7 @@ async function buildDraftPack() {
       glyphs = glyphs.concat(read.glyphs);
       missing = missing.concat(read.missing);
     });
+    glyphs = Glyphs.keepMatchingCase(glyphs);
     if (glyphs[0]) {
       cellH = glyphs[0].cellH || cellH;
       cellW = glyphs[0].cellW || cellW;

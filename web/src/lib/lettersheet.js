@@ -505,7 +505,7 @@ function read(scan, opts) {
   spec.cells.forEach(function (cell) {
     var box = cellPixels(cell);
     var ink = measureInk(aligned, box);
-    var g = ink && Glyphs.extractCell(aligned, box.x, box.y, box.w, box.h, true, cell.ch);
+    var g = ink && Glyphs.extractCell(aligned, box.x, box.y, box.w, box.h, true, cell.ch, true);
     if (!g || !ink) {
       missing.push(cell.ch);
       return;

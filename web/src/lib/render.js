@@ -120,9 +120,19 @@ var PAGE_W = 1240, PAGE_H = 1754;   /* A4 @ 150 dpi */
   function pickVariant(list, r, prev) {
     if (!list || !list.length) return null;
     if (list.length === 1) return list[0];
-    var pool = [];
+    var heights = [];
     var i;
-    for (i = 0; i < list.length; i++) if (list[i] !== prev) pool.push(list[i]);
+    for (i = 0; i < list.length; i++) heights.push(list[i].h || 0);
+    heights.sort(function (a, b) { return a - b; });
+    var mid = heights[(heights.length * 0.5) | 0] || 1;
+    var pool = [];
+    for (i = 0; i < list.length; i++) {
+      var h = list[i].h || mid;
+      if (list[i] !== prev && h > mid * 0.65 && h < mid * 1.45) pool.push(list[i]);
+    }
+    if (!pool.length) {
+      for (i = 0; i < list.length; i++) if (list[i] !== prev) pool.push(list[i]);
+    }
     if (!pool.length) pool = list;
     return pool[(r() * pool.length) | 0];
   }
@@ -321,7 +331,7 @@ var PAGE_W = 1240, PAGE_H = 1754;   /* A4 @ 150 dpi */
     return {
       wordSpace: clamp(style.wordGap ? style.wordGap * unit : size * 0.36, size * 0.22, size * 0.95),
       lineSpace: clamp(style.lineSpacing ? style.lineSpacing * unit : size * 1.68, size * 1.25, size * 2.5),
-      letterExtra: clamp(style.letterGap ? style.letterGap * unit * 0.45 : 0, 0, size * 0.28),
+      letterExtra: clamp(style.letterGap && style.letterGap < xh * 0.85 ? style.letterGap * unit * 0.45 : 0, 0, size * 0.12),
       wobble: clamp(style.baselineWobble != null ? style.baselineWobble * unit : size * 0.035, 0, size * 0.14)
     };
   }

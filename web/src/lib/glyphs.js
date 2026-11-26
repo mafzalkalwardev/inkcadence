@@ -34,7 +34,7 @@ var CHARS = 'abcdefghijklmnopqrstuvwxyz' +
   }
 
   /* crop one cell and turn it into a transparent alpha glyph */
-  function extractCell(scan, cx, cy, cw, ch, pad, expectedChar) {
+  function extractCell(scan, cx, cy, cw, ch, pad, expectedChar, sheetBox) {
     var ctx = scan.getContext('2d');
     var sx = Math.max(0, Math.round(cx)), sy = Math.max(0, Math.round(cy));
     var sw = Math.min(scan.width - sx, Math.round(cw)), shh = Math.min(scan.height - sy, Math.round(ch));
@@ -78,11 +78,15 @@ var CHARS = 'abcdefghijklmnopqrstuvwxyz' +
     }
 
     var inkLum = percentileFromHist(hist, n, soft ? 0.005 : 0.03);
-    /* For soft glyphs, also consider absolute darkest pixel so pale dots count. */
+    /* For soft glyphs, also consider absolute darkest pixel so pale dots count.
+       A normal letter in a full box is only a thin stroke, under the 3% point. */
+    var absMin = 255, qi;
+    for (qi = 0; qi < 256; qi++) if (hist[qi]) { absMin = qi; break; }
     if (soft) {
-      var absMin = 255, qi;
-      for (qi = 0; qi < 256; qi++) if (hist[qi]) { absMin = qi; break; }
       inkLum = Math.min(inkLum, absMin + 8);
+    } else {
+      var tail = percentileFromHist(hist, n, 0.008);
+      if (paper - tail >= 48) inkLum = Math.min(inkLum, tail);
     }
     var minContrast = soft ? 16 : 48;
     if (paper - inkLum < minContrast) return null;
@@ -92,17 +96,40 @@ var CHARS = 'abcdefghijklmnopqrstuvwxyz' +
     var alpha = new Uint8ClampedArray(n);
     var minX = sw, minY = shh, maxX = -1, maxY = -1, count = 0;
     var span = Math.max(1, paper - inkLum);
+    var edgeX = sheetBox ? Math.max(3, Math.round(sw * 0.07)) : 2;
+    var edgeY = sheetBox ? Math.max(3, Math.round(shh * 0.08)) : 2;
+    /* The printed baseline is one thin rule at 76% of the box. A letter that sits on it has ink above that rule. */
+    var baseY = Math.round(shh * 0.76);
+    var ruleBand = sheetBox ? Math.max(1, Math.round(shh * 0.02)) : 0;
+
+    function onPrintedRule(x, y) {
+      if (!ruleBand || soft || Math.abs(y - baseY) > ruleBand) return false;
+      var above = 0, seen = 0, yy;
+      var y0 = Math.max(edgeY, y - Math.round(shh * 0.14));
+      for (yy = y0; yy <= y - ruleBand - 1; yy++) {
+        seen++;
+        if (lum[yy * sw + x] <= paper - 40) above++;
+      }
+      return seen > 0 && above / seen < 0.2;
+    }
 
     for (var y = 0; y < shh; y++) {
       for (var x = 0; x < sw; x++) {
         p = y * sw + x;
-        /* ignore printed border + corner tag */
-        if (x < 2 || y < 2 || x > sw - 3 || y > shh - 3 || (x < sw * 0.22 && y < shh * 0.2)) continue;
+        if (x < edgeX || y < edgeY || x >= sw - edgeX || y >= shh - edgeY) continue;
+        if (sheetBox && (x < sw * 0.30 && y < shh * 0.28)) continue;
+        if (onPrintedRule(x, y)) continue;
         var a = (paper - lum[p]) / span;
         a = a <= floor ? 0 : (a > 1 ? 255 : (a - floor) / (1 - floor) * 255);
         if (a < alphaCut) a = 0;
         alpha[p] = a;
-        if (a > 0) {
+      }
+    }
+    if (sheetBox) keepLargestStroke(alpha, sw, shh);
+    count = 0;
+    for (y = 0; y < shh; y++) {
+      for (x = 0; x < sw; x++) {
+        if (alpha[y * sw + x] > 0) {
           count++;
           if (x < minX) minX = x;
           if (x > maxX) maxX = x;
@@ -142,10 +169,84 @@ var CHARS = 'abcdefghijklmnopqrstuvwxyz' +
       w: gw, h: gh,
       bx: minX,
       by: Math.round(ch * 0.76) - minY,
-      adv: Math.min(sw, maxX + 1) + Math.round(cw * 0.06),
+      /* Step from this stroke to the next. The old value included the empty left side of the box, so letters sat a box apart. */
+      adv: gw + Math.max(2, Math.round(cw * 0.08)),
       cellH: ch,
       cellW: cw
     };
+  }
+
+  /* The printed guide is a second mark. Keep the stroke the writer made. */
+  function keepLargestStroke(alpha, sw, shh) {
+    var n = sw * shh;
+    var seen = new Uint8Array(n);
+    var best = null;
+    var bestN = 0;
+    var i, stack, pixels, p, x, y, dx, dy, nx, ny, np;
+    for (i = 0; i < n; i++) {
+      if (seen[i] || alpha[i] < 12) continue;
+      stack = [i];
+      seen[i] = 1;
+      pixels = [];
+      while (stack.length) {
+        p = stack.pop();
+        pixels.push(p);
+        x = p % sw;
+        y = (p / sw) | 0;
+        for (dy = -1; dy <= 1; dy++) {
+          for (dx = -1; dx <= 1; dx++) {
+            if (!dx && !dy) continue;
+            nx = x + dx;
+            ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= sw || ny >= shh) continue;
+            np = ny * sw + nx;
+            if (seen[np] || alpha[np] < 12) continue;
+            seen[np] = 1;
+            stack.push(np);
+          }
+        }
+      }
+      if (pixels.length > bestN) {
+        bestN = pixels.length;
+        best = pixels;
+      }
+    }
+    if (!best) return;
+    var keep = new Uint8Array(n);
+    best.forEach(function (idx) { keep[idx] = 1; });
+    for (i = 0; i < n; i++) if (!keep[i]) alpha[i] = 0;
+  }
+
+  /* A capital written in a lowercase box is taller than the real small letter. */
+  function keepMatchingCase(glyphs) {
+    var by = Object.create(null);
+    (glyphs || []).forEach(function (g) {
+      if (g && g.ch) (by[g.ch] || (by[g.ch] = [])).push(g);
+    });
+    var xh = 'acemnorsuvwxz';
+    var drop = [];
+    var i, ch, low, up, capH, short, g;
+    for (i = 0; i < xh.length; i++) {
+      ch = xh.charAt(i);
+      low = by[ch] || [];
+      up = by[ch.toUpperCase()] || [];
+      if (low.length < 2 || !up.length) continue;
+      capH = medianHeight(up);
+      if (!(capH > 4)) continue;
+      short = low.filter(function (item) { return item.h < capH * 0.72; });
+      if (!short.length) continue;
+      for (var j = 0; j < low.length; j++) {
+        g = low[j];
+        if (g.h > capH * 0.82) drop.push(g);
+      }
+    }
+    if (!drop.length) return glyphs || [];
+    return (glyphs || []).filter(function (item) { return drop.indexOf(item) < 0; });
+  }
+
+  function medianHeight(list) {
+    var hs = list.map(function (g) { return g.h || 0; }).sort(function (a, b) { return a - b; });
+    return hs[(hs.length * 0.5) | 0] || 0;
   }
 
   function extractGlyphs(scan, rect, cols, rows, chars) {
@@ -415,6 +516,7 @@ var CHARS = 'abcdefghijklmnopqrstuvwxyz' +
     const Glyphs = {
     CHARS: CHARS, COLS: COLS, ROWS: ROWS,
     extractCell: extractCell,
+    keepMatchingCase: keepMatchingCase,
     extractGlyphs: extractGlyphs,
     detectSheetGrid: detectSheetGrid,
     scoreSheetGrid: scoreSheetGrid,
