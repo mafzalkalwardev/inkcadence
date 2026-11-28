@@ -45,12 +45,15 @@ jobs:
           set -euo pipefail
           host="${OFFICIAL_SSH_HOST:-89.168.127.135}"
           user="${OFFICIAL_SSH_USER:-ubuntu}"
-          dest="${OFFICIAL_SSH_PATH:-/var/www/inkcadence}"
+          # nginx root for inkcadence.induswebagency.com (see sites-available/inkcadence)
+          dest="${OFFICIAL_SSH_PATH:-/opt/inkcadence/www}"
           mkdir -p ~/.ssh
           printf '%s\n' "$OFFICIAL_SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "$host" >> ~/.ssh/known_hosts 2>/dev/null || true
+          # www is root-owned; remote sudo rsync matches how the VPS hosts other static sites
           rsync -az --delete \
             -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" \
+            --rsync-path="sudo rsync" \
             _site/ "${user}@${host}:${dest}/"
           echo "Published to ${user}@${host}:${dest}"
